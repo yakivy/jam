@@ -31,7 +31,7 @@ trait UserModule {
 will generate:
 ```scala
 trait UserModule {
-    val singletonDatabaseAccess = jam.brew[DatabaseAccess]
+    val singletonDatabaseAccess = new DatabaseAccess()
     val userStatusReader = new UserStatusReader(
         new UserFinder(
             singletonDatabaseAccess,
