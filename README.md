@@ -12,7 +12,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 - incredibly simple: 1 exposed method, ~50 lines of code
 
 ### Quick start
-Add dependency to the build file:
+Add jam dependency:
 ```scala
 "com.github.yakivy" %% "jam-core" % "0.0.1"
 ```
