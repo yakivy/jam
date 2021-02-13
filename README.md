@@ -14,7 +14,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 ### Quick start
 Add dependency to the build file:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.0.1.2-SNAPSHOT"
+"com.github.yakivy" %% "jam-core" % "0.0.1"
 ```
 Usage example:
 ```scala
