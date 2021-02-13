@@ -15,14 +15,14 @@ class JamTest extends AnyFreeSpec {
         }
 
         new {
-            val c: C = brew[C]
+            val c = brew[C]
             assert(c.apply() == "C(A,B(A))")
             assert(!c.a.eq(c.b.a))
         }
 
         new {
             val a = new A
-            val c: C = brew[C]
+            val c = brew[C]
             assert(c.apply() == "C(A,B(A))")
             assert(c.a.eq(c.b.a))
         }
@@ -31,7 +31,7 @@ class JamTest extends AnyFreeSpec {
             def a = new A {
                 override def apply(): String = "A1"
             }
-            val c: C = brew[C]
+            val c = brew[C]
             assert(c.apply() == "C(A1,B(A1))")
             assert(!c.a.eq(c.b.a))
         }
@@ -40,7 +40,7 @@ class JamTest extends AnyFreeSpec {
             def a()()()()()() = new A {
                 override def apply(): String = "A1"
             }
-            val c: C = brew[C]
+            val c = brew[C]
             assert(c.apply() == "C(A1,B(A1))")
             assert(!c.a.eq(c.b.a))
         }

@@ -16,7 +16,7 @@ object core extends Module {
     }
     trait CommonCoreModule extends PublishModule with CrossScalaModule {
         override def artifactName = "jam-core"
-        override def publishVersion = "0.0.1.0-SNAPSHOT"
+        override def publishVersion = "0.0.1.2-SNAPSHOT"
         override def pomSettings = PomSettings(
             description = artifactName(),
             organization = "com.github.yakivy",
@@ -26,6 +26,8 @@ object core extends Module {
             developers = Seq(Developer("yakivy", "Yakiv Yereskovskyi", "https://github.com/yakivy"))
         )
         override def compileIvyDeps = Agg(ivy"org.scala-lang:scala-reflect:${scalaVersion()}")
+        override def sources = T.sources(millSourcePath / "src")
+        override def millSourcePath = super.millSourcePath / os.up
     }
     trait CommonTestModule extends ScalaModule with TestModule {
         override def ivyDeps = super.ivyDeps() ++ Agg(ivy"org.scalatest::scalatest:${versions.scalatest}")

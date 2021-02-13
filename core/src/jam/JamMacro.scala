@@ -15,14 +15,20 @@ object JamMacro {
             .filter(m => m.isConstructor && m.returnType == `type`)
         if (constructors.isEmpty)
             c.abort(c.enclosingPosition, s"Unable to find public constructor for ${`type`}")
-        if (constructors.tail.nonEmpty)
+        if (constructors.size > 1)
             c.abort(c.enclosingPosition, s"More than one primary constructor was found for ${`type`}")
-        val candidates = c.typecheck(q"this").tpe.members
-            .filter(_.isMethod).map(_.asMethod).filter(_.paramLists.flatten.isEmpty)
+        val candidates: Iterable[c.universe.MethodSymbol] = c.typecheck(q"this").tpe.members
+            .filter(_.isMethod).map(_.asMethod)
+            .filter(_.fullName != c.internal.enclosingOwner.fullName)
+            .filter(_.paramLists.flatten.isEmpty)
         val constructorArgs = constructors.head.paramLists.map(_.map(p =>
             if (p.isImplicit) q"implicitly[${p.typeSignature}]"
-            else candidates.find(_.returnType == p.typeSignature)
-                .fold(brewRec(c)(p.typeSignature))(m => q"this.${m.name}")
+            else {
+                val parameterCandidates = candidates.filter(_.returnType == p.typeSignature)
+                if (parameterCandidates.size > 1)
+                    c.abort(c.enclosingPosition, s"More than one injection candidate was found for ${`type`}.${p.name}")
+                parameterCandidates.headOption.fold(brewRec(c)(p.typeSignature))(m => q"this.${m.name}")
+            }
         ))
         q"new ${`type`}(...$constructorArgs)"
     }
