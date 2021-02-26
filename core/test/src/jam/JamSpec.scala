@@ -2,12 +2,12 @@ package jam
 
 import org.scalatest.freespec.AnyFreeSpec
 
-class JamTest extends AnyFreeSpec {
+class JamSpec extends AnyFreeSpec {
     "Jam should be brewed" in {
         class A extends (() => String) {
             override def apply(): String = "A"
         }
-        class B(val a: A) extends (() => String) {
+        @jam.tree.annotated.brewable class B(val a: A) extends (() => String) {
             override def apply(): String = s"B(${a()})"
         }
         class C(val a: A, val b: B) extends (() => String) {
@@ -18,14 +18,29 @@ class JamTest extends AnyFreeSpec {
         }
 
         new {
-            val c = brew[C]
+            val a: A = brew[A]
+            val b: B = brew[B]
+            val c: C = brew[C]
+            assert(c.apply() == "C(A,B(A))")
+            assert(c.a.eq(a) && c.b.eq(b) && b.a.eq(a))
+        }
+
+        new {
+            val a = new A
+            val c: C = tree.annotated.brew[C]
+            assert(c.apply() == "C(A,B(A))")
+            assert(c.a.eq(c.b.a))
+        }
+
+        new {
+            val c: C = tree.brew[C]
             assert(c.apply() == "C(A,B(A))")
             assert(!c.a.eq(c.b.a))
         }
 
         new {
             val a = new A
-            val c = brew[C]
+            val c: C = tree.brew[C]
             assert(c.apply() == "C(A,B(A))")
             assert(c.a.eq(c.b.a))
         }
@@ -34,7 +49,7 @@ class JamTest extends AnyFreeSpec {
             def a = new A {
                 override def apply(): String = "A1"
             }
-            val c = brew[C]
+            val c: C = tree.brew[C]
             assert(c.apply() == "C(A1,B(A1))")
             assert(!c.a.eq(c.b.a))
         }
@@ -43,7 +58,7 @@ class JamTest extends AnyFreeSpec {
             def a()()()()()() = new A {
                 override def apply(): String = "A1"
             }
-            val c = brew[C]
+            val c: C = tree.brew[C]
             assert(c.apply() == "C(A1,B(A1))")
             assert(!c.a.eq(c.b.a))
         }
@@ -53,7 +68,7 @@ class JamTest extends AnyFreeSpec {
                 override def apply(): String = s"B1(${a()})"
             }
             new {
-                val d = brew[D]
+                val d: D = tree.brew[D]
                 assert(d.apply() == "D(A,B1(A))")
             }
         }

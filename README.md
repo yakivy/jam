@@ -7,12 +7,12 @@
 Jam is an incredibly simple DI Scala library.
 
 Essential differences from [macwire](https://github.com/softwaremill/macwire):
-- injects a whole object tree, not only constructor arguments
+- is able to inject a whole object tree, not only constructor arguments
 - can be easily migrated on Scala 3, since doesn't use context scans
-- incredibly simple: 1 exposed method, ~50 lines of code
+- incredibly simple: 3 exposed methods, ~50 lines of code
 
 ### Quick start
-Add jam dependency:
+Latest stable jam dependency:
 ```scala
 "com.github.yakivy" %% "jam-core" % "0.0.1"
 ```
@@ -24,15 +24,15 @@ class UserFinder(databaseAccess: DatabaseAccess, securityFilter: SecurityFilter)
 class UserStatusReader(userFinder: UserFinder)
 
 trait UserModule {
-    val singletonDatabaseAccess = jam.brew[DatabaseAccess]
-    val userStatusReader        = jam.brew[UserStatusReader]
+    val singletonDatabaseAccess: DatabaseAccess = jam.tree.brew[DatabaseAccess]
+    val userStatusReader: UserStatusReader = jam.tree.brew[UserStatusReader]
 }
 ```
-will generate:
+Macro output:
 ```scala
 trait UserModule {
-    val singletonDatabaseAccess = new DatabaseAccess()
-    val userStatusReader = new UserStatusReader(
+    val singletonDatabaseAccess: DatabaseAccess = new DatabaseAccess()
+    val userStatusReader: UserStatusReader = new UserStatusReader(
         new UserFinder(
             singletonDatabaseAccess,
             new SecurityFilter(singletonDatabaseAccess)
@@ -40,8 +40,12 @@ trait UserModule {
     )
 }
 ```
+Brew types:
+- `jam.brew` - injects constructor arguments if they are provided in `this`, otherwise throws an error
+- `jam.tree.brew` - injects constructor arguments if they are provided in `this` or recursively brews them
+- `jam.tree.annotated.brew` - injects constructor arguments if they are provided in `this`, recursively brews arguments that have a `jam.tree.annotated.brewable` class annotation or throws an error
 ### Implementation details 
-
+- brewed members should have explicit type because macros
 - injection candidates is being searched in `this` instance, so to provide an instance for future injection you need to make it a member of `this`. Examples:
 ```scala
 trait A {
@@ -89,4 +93,10 @@ dbClientResource.use { dbClient =>
     }
     ...logic that utilizes container
 } // client will be closed
+```
+### Known issues 
+- type inference for brewed members doesn't work because macros resolves type of all `this` members including itself:
+```
+recursive value c needs type
+            val c = brew[C]
 ```
