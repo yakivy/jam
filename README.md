@@ -8,13 +8,13 @@ Jam is an incredibly simple DI Scala library.
 
 Essential differences from [macwire](https://github.com/softwaremill/macwire):
 - is able to inject a whole object tree, not only constructor arguments
-- can be easily migrated on Scala 3, since doesn't use context scans
-- incredibly simple: 3 exposed methods, ~50 lines of code
+- migrated on Scala 3
+- incredibly simple: 3 exposed methods, ~100 lines of code
 
 ### Quick start
 Latest stable jam dependency:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.0.2"
+"com.github.yakivy" %% "jam-core" % "0.0.3"
 ```
 Usage example:
 ```scala

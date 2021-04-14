@@ -6,7 +6,7 @@ import scala.reflect.macros.blackbox.Context
 object JamMacro {
     def brewImpl[J: c.WeakTypeTag](c: Context): c.Expr[J] = {
         brew(c)(implicitly[c.WeakTypeTag[J]].tpe.dealias, "") { (tpe, prefix) =>
-            c.abort(c.enclosingPosition, s"Unable to find instance for $prefix`$tpe`")
+            c.abort(c.enclosingPosition, s"Unable to find instance for $prefix($tpe)")
         }
     }
 
@@ -23,7 +23,7 @@ object JamMacro {
                 def rec(tpe: c.Type, prefix: String): c.Tree = brew(c)(tpe, prefix)(rec(_, _)).tree
                 rec(tpe, prefix)
             } else {
-                c.abort(c.enclosingPosition, s"Unable to find instance for $prefix`$tpe`")
+                c.abort(c.enclosingPosition, s"Unable to find instance for $prefix($tpe)")
             }
         }
     }
@@ -39,9 +39,9 @@ object JamMacro {
             .map(_.asMethod)
             .filter(m => m.isConstructor && m.returnType == tpe)
         if (constructors.isEmpty)
-            c.abort(c.enclosingPosition, s"Unable to find public constructor for $prefix`$tpe`")
+            c.abort(c.enclosingPosition, s"Unable to find public constructor for $prefix($tpe)")
         if (constructors.size > 1)
-            c.abort(c.enclosingPosition, s"More than one primary constructor was found for $prefix`$tpe`")
+            c.abort(c.enclosingPosition, s"More than one primary constructor was found for $prefix($tpe)")
         val candidates: Iterable[c.universe.MethodSymbol] = c.typecheck(q"this").tpe.members
             .filter(_.isMethod).map(_.asMethod)
             .filter(_.paramLists.flatten.isEmpty)
@@ -51,9 +51,9 @@ object JamMacro {
                 val parameterCandidates = candidates
                     .filter(c => c.returnType == p.typeSignature && c.paramLists.flatten.isEmpty)
                 if (parameterCandidates.size > 1)
-                    c.abort(c.enclosingPosition, s"More than one injection candidate was found for $prefix`$tpe`.`${p.name}`")
+                    c.abort(c.enclosingPosition, s"More than one injection candidate was found for $prefix($tpe).${p.name}")
                 parameterCandidates.headOption.fold(
-                    onEmptyCandidate(p.typeSignature, s"$prefix`$tpe`."))(
+                    onEmptyCandidate(p.typeSignature, s"$prefix($tpe).${p.name}"))(
                     m => q"this.${m.name}"
                 )
             }

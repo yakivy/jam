@@ -26,6 +26,20 @@ class JamSpec extends AnyFreeSpec {
         }
 
         new {
+            val a1 = new A {
+                override def apply(): String = "A1"
+            }
+            val b: B = {
+                val a2 = new A {
+                    override def apply(): String = "A2"
+                }
+                tree.brew[B]
+            }
+            assert(b.apply() == "B(A1)")
+            assert(b.a.eq(a1))
+        }
+
+        new {
             val a = new A
             val c: C = tree.annotated.brew[C]
             assert(c.apply() == "C(A,B(A))")
@@ -70,6 +84,7 @@ class JamSpec extends AnyFreeSpec {
             new {
                 val d: D = tree.brew[D]
                 assert(d.apply() == "D(A,B1(A))")
+                assert(d.b.eq(b))
             }
         }
     }
