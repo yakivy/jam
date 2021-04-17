@@ -10,8 +10,8 @@ class ReadmeSpec extends AnyFreeSpec {
         class UserStatusReader(userFinder: UserFinder)
 
         trait UserModule {
-            val singletonDatabaseAccess: DatabaseAccess = jam.tree.brew[DatabaseAccess]
-            val userStatusReader: UserStatusReader = jam.tree.brew[UserStatusReader]
+            val singletonDatabaseAccess = jam.tree.brew[DatabaseAccess]
+            val userStatusReader = jam.tree.brew[UserStatusReader]
         }
     }
 }

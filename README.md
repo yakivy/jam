@@ -8,13 +8,13 @@ Jam is an incredibly simple DI Scala library.
 
 Essential differences from [macwire](https://github.com/softwaremill/macwire):
 - is able to inject a whole object tree, not only constructor arguments
-- migrated on Scala 3
+- supports Scala 3
 - incredibly simple: 3 exposed methods, ~100 lines of code
 
 ### Quick start
 Latest stable jam dependency:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.0.3"
+"com.github.yakivy" %% "jam-core" % "0.0.4"
 ```
 Usage example:
 ```scala
@@ -24,15 +24,15 @@ class UserFinder(databaseAccess: DatabaseAccess, securityFilter: SecurityFilter)
 class UserStatusReader(userFinder: UserFinder)
 
 trait UserModule {
-    val singletonDatabaseAccess: DatabaseAccess = jam.tree.brew[DatabaseAccess]
-    val userStatusReader: UserStatusReader = jam.tree.brew[UserStatusReader]
+    val singletonDatabaseAccess = jam.tree.brew[DatabaseAccess]
+    val userStatusReader = jam.tree.brew[UserStatusReader]
 }
 ```
 Macro output:
 ```scala
 trait UserModule {
-    val singletonDatabaseAccess: DatabaseAccess = new DatabaseAccess()
-    val userStatusReader: UserStatusReader = new UserStatusReader(
+    val singletonDatabaseAccess = new DatabaseAccess()
+    val userStatusReader = new UserStatusReader(
         new UserFinder(
             singletonDatabaseAccess,
             new SecurityFilter(singletonDatabaseAccess)
@@ -93,10 +93,4 @@ dbClientResource.use { dbClient =>
     }
     ...logic that utilizes container
 } // client will be closed
-```
-### Known issues 
-- type inference for brewed members doesn't work because macros resolves type of all `this` members including itself:
-```
-recursive value c needs type
-            val c = brew[C]
 ```
