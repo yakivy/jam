@@ -8,6 +8,7 @@ Jam is an incredibly simple DI Scala library.
 
 Essential differences from [macwire](https://github.com/softwaremill/macwire):
 - is able to inject a whole object tree, not only constructor arguments
+- searches candidates in `this`
 - supports Scala 3
 - incredibly simple: 3 exposed methods, ~100 lines of code
 
