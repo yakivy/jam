@@ -7,11 +7,11 @@ import mill.scalalib.publish._
 object core extends Module {
     val versions = new {
         val scala212 = "2.12.13"
-        val scala213 = "2.13.4"
-        val scala3 = "3.0.0-RC2"
-        val scalaJs = "1.5.0"
+        val scala213 = "2.13.5"
+        val scala3 = "3.0.0"
+        val scalaJs = "1.5.1"
         val scalaNative = "0.4.0"
-        val scalatest = "3.2.7"
+        val scalatest = "3.2.9"
 
         val cross2 = Seq(scala212, scala213)
         val cross3 = Seq(scala3)
@@ -19,7 +19,7 @@ object core extends Module {
     }
     trait CommonCoreModule extends PublishModule with CrossScalaModule {
         override def artifactName = "jam-core"
-        override def publishVersion = "0.0.4"
+        override def publishVersion = "0.0.5"
         override def pomSettings = PomSettings(
             description = artifactName(),
             organization = "com.github.yakivy",

@@ -15,7 +15,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 ### Quick start
 Latest stable jam dependency:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.0.4"
+"com.github.yakivy" %% "jam-core" % "0.0.5"
 ```
 Usage example:
 ```scala

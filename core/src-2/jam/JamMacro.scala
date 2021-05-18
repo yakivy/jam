@@ -57,8 +57,12 @@ object JamMacro {
         if (constructors.size > 1)
             c.abort(c.enclosingPosition, s"More than one primary constructor was found for $prefix($tpe)")
         val constructorArgs = constructors.head.paramLists.map(_.map(p =>
-            if (p.isImplicit) q"implicitly[${p.typeSignature}]"
-            else {
+            if (p.isImplicit) {
+                q"""def implicitlyWithMessage[A](implicit @_root_.scala.annotation.implicitNotFound(${
+                    s"Unable to resolve implicit instance for $prefix($tpe).${p.name}"
+                }) value: A): A = value
+               implicitlyWithMessage[${p.typeSignature}]"""
+            } else {
                 val parameterCandidates = candidates.filter { m =>
                     m._2.finalResultType <:< p.typeSignature.finalResultType &&
                         (!m._1.isMethod || m._1.asMethod.paramLists.flatten.isEmpty)
