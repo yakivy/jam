@@ -46,7 +46,6 @@ Brew types:
 - `jam.tree.brew` - injects constructor arguments if they are provided in `this` or recursively brews them
 - `jam.tree.annotated.brew` - injects constructor arguments if they are provided in `this`, recursively brews arguments that have a `jam.tree.annotated.brewable` class annotation or throws an error
 ### Implementation details 
-- brewed members should have explicit type because macros
 - injection candidates is being searched in `this` instance, so to provide an instance for future injection you need to make it a member of `this`. Examples:
 ```scala
 trait A {
