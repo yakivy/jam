@@ -51,7 +51,7 @@ object JamMacro {
         val constructors = tpe.members
             .filter(m => m.isMethod && m.isPublic)
             .map(_.asMethod)
-            .filter(m => m.isConstructor && m.returnType == tpe)
+            .filter(m => m.isConstructor && m.returnType <:< tpe)
         if (constructors.isEmpty)
             c.abort(c.enclosingPosition, s"Unable to find public constructor for $prefix($tpe)")
         if (constructors.size > 1)

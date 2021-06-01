@@ -16,14 +16,22 @@ class JamSpec extends AnyFreeSpec {
         class D(val a: A)(implicit val b: B) extends (() => String) {
             override def apply(): String = s"D(${a()},${b()})"
         }
+        object E {
+            class F(val a: A) extends (() => String) {
+                override def apply(): String = s"F(${a()})"
+            }
+        }
 
         "objects for simple module" in {
             new {
                 val a = brew[A]
                 val b = brew[B]
                 val c = brew[C]
+                val f = brew[E.F]
                 assert(c.apply() == "C(A,B(A))")
+                assert(f.apply() == "F(A)")
                 assert(c.a.eq(a) && c.b.eq(b) && b.a.eq(a))
+                assert(f.a.eq(a))
             }
         }
 
