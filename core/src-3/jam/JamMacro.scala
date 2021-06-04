@@ -48,9 +48,16 @@ object JamMacro {
         find: (q.reflect.TypeTree, String) => Expr[?]
     ): Expr[?] = {
         import q.reflect.*
-        val constructors = ttr.tpe.typeSymbol.declarations.filter(m => m.isClassConstructor).map(_.tree).collect {
-            case m: DefDef if m.returnTpt.tpe =:= ttr.tpe => m
+        val ttrArgs = ttr.tpe match {
+            case t: AppliedType => Option(ttr.tpe.typeSymbol.memberTypes.map(_.name).zip(t.args).toMap)
+            case _ => None
         }
+        val constructors = ttr.tpe.typeSymbol.declarations
+            .filter(m => m.isClassConstructor).map(_.tree)
+            .collect { case m: DefDef if ttrArgs.fold(
+                m.returnTpt.tpe)(
+                args => m.returnTpt.tpe.asInstanceOf[AppliedType].tycon.appliedTo(args.values.toList)
+            ) <:< ttr.tpe => m }
         if (constructors.isEmpty) report.throwError(s"Unable to find public constructor for $prefix(${ttr.show})")
         if (constructors.size > 1)
             report.throwError(s"More than one primary constructor was found for $prefix(${ttr.show})")
@@ -60,7 +67,11 @@ object JamMacro {
                 (m.symbol, m.termParamss.map(_ => Nil), m.rhs.map(_.tpe).getOrElse(m.returnTpt.tpe))
         }
         val constructorArgs = constructors.head.termParamss.map(tp => tp.params.map(p =>
-            if (tp.isImplicit) p.tpt.tpe.asType match {
+            val ptpt = (ttrArgs, p.tpt.tpe) match {
+                case (Some(args), TypeRef(_, name)) if args.contains(name) => TypeIdent(args(name).typeSymbol)
+                case (_, _) => p.tpt
+            }
+            if (tp.isImplicit) ptpt.tpe.asType match {
                 case '[tpe] => (Expr.summon[tpe] match {
                     case Some(arg) => arg
                     case _ => report.throwError(
@@ -68,18 +79,18 @@ object JamMacro {
                     )
                 }).asTerm
             } else {
-                val parameterCandidates = candidates.filter(_._3 =:= p.tpt.tpe)
+                val parameterCandidates = candidates.filter(_._3 <:< ptpt.tpe)
                 if (parameterCandidates.size > 1) report.throwError(
                     s"More than one injection candidate was found for $prefix(${ttr.show}).${p.name}"
                 )
                 parameterCandidates.headOption.fold(
-                    find(p.tpt, s"$prefix(${ttr.show}).${p.name}").asTerm)(
+                    find(ptpt, s"$prefix(${ttr.show}).${p.name}").asTerm)(
                     m => m._2.foldLeft[Term](Select(self, m._1))(Apply(_, _))
                 )
             }
         ))
-        constructorArgs.map(_.map(_.asExpr.asTerm)).foldLeft[Term](Select(
-            New(ttr), ttr.tpe.typeSymbol.primaryConstructor
-        ))(Apply(_, _)).asExpr
+        val typedConstructor = ttrArgs.map(_.values.map(t => TypeIdent(t.typeSymbol)).toList)
+            .foldLeft[Term](Select(New(ttr), constructors.head.symbol))(TypeApply(_, _))
+        constructorArgs.map(_.map(_.asExpr.asTerm)).foldLeft[Term](typedConstructor)(Apply(_, _)).asExpr
     }
 }

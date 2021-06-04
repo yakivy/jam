@@ -49,14 +49,14 @@ object JamMacro {
     ): c.Expr[J] = {
         import c.universe._
         val constructors = tpe.members
-            .filter(m => m.isMethod && m.isPublic)
-            .map(_.asMethod)
-            .filter(m => m.isConstructor && m.returnType <:< tpe)
+            .filter(m => m.isMethod && m.isPublic).map(_.asMethod)
+            .filter(m => m.isConstructor && m.typeSignatureIn(tpe).finalResultType <:< tpe)
         if (constructors.isEmpty)
             c.abort(c.enclosingPosition, s"Unable to find public constructor for $prefix($tpe)")
         if (constructors.size > 1)
             c.abort(c.enclosingPosition, s"More than one primary constructor was found for $prefix($tpe)")
-        val constructorArgs = constructors.head.paramLists.map(_.map(p =>
+        val constructorArgs = constructors.head.paramLists.map(_.map { p =>
+            val ptype = p.typeSignature.substituteTypes(tpe.typeSymbol.asClass.typeParams, tpe.typeArgs)
             if (p.isImplicit) {
                 q"""def implicitlyWithMessage[A](implicit @_root_.scala.annotation.implicitNotFound(${
                     s"Unable to resolve implicit instance for $prefix($tpe).${p.name}"
@@ -64,17 +64,16 @@ object JamMacro {
                implicitlyWithMessage[${p.typeSignature}]"""
             } else {
                 val parameterCandidates = candidates.filter { m =>
-                    m._2.finalResultType <:< p.typeSignature.finalResultType &&
-                        (!m._1.isMethod || m._1.asMethod.paramLists.flatten.isEmpty)
+                    m._2.finalResultType <:< ptype && (!m._1.isMethod || m._1.asMethod.paramLists.flatten.isEmpty)
                 }
                 if (parameterCandidates.size > 1)
                     c.abort(c.enclosingPosition, s"More than one injection candidate was found for $prefix($tpe).${p.name}")
                 parameterCandidates.headOption.fold(
-                    find(p.typeSignature, s"$prefix($tpe).${p.name}"))(
+                    find(ptype, s"$prefix($tpe).${p.name}"))(
                     m => q"this.${m._1.name}"
                 )
             }
-        ))
+        })
         c.Expr(q"new $tpe(...$constructorArgs)")
     }
 }
