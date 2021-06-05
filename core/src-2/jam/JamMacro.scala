@@ -38,6 +38,7 @@ object JamMacro {
             Option(m._3).filter(_ != EmptyTree).map(c.typecheck(_, silent = true, withMacrosDisabled = true).tpe)
         ).map(m._1 -> _)).toMap
         c.typecheck(q"this").tpe.members
+            .filter(m => !m.fullName.startsWith("java.lang.Object") && !m.fullName.startsWith("scala.Any"))
             .filter(_.isTerm).map(_.asTerm).map(s => s.getter.orElse(s).asTerm).toList.distinct
             .map(m => m -> defs.getOrElse(m.name, m.typeSignature))
     }

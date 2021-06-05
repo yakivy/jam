@@ -61,11 +61,13 @@ object JamMacro {
         if (constructors.isEmpty) report.throwError(s"Unable to find public constructor for $prefix(${ttr.show})")
         if (constructors.size > 1)
             report.throwError(s"More than one primary constructor was found for $prefix(${ttr.show})")
-        val candidates = (self.tpe.typeSymbol.memberMethods ::: self.tpe.typeSymbol.memberFields).map(_.tree).collect {
-            case m: ValDef => (m.symbol, Nil, m.rhs.map(_.tpe).getOrElse(m.tpt.tpe))
-            case m: DefDef if m.termParamss.flatMap(_.params).isEmpty =>
-                (m.symbol, m.termParamss.map(_ => Nil), m.rhs.map(_.tpe).getOrElse(m.returnTpt.tpe))
-        }
+        val candidates = (self.tpe.typeSymbol.memberMethods ::: self.tpe.typeSymbol.memberFields)
+            .filter(m => !m.fullName.startsWith("java.lang.Object") && !m.fullName.startsWith("scala.Any"))
+            .map(_.tree).collect {
+                case m: ValDef => (m.symbol, Nil, m.rhs.map(_.tpe).getOrElse(m.tpt.tpe))
+                case m: DefDef if m.termParamss.flatMap(_.params).isEmpty =>
+                    (m.symbol, m.termParamss.map(_ => Nil), m.rhs.map(_.tpe).getOrElse(m.returnTpt.tpe))
+            }
         val constructorArgs = constructors.head.termParamss.map(tp => tp.params.map(p =>
             val ptpt = (ttrArgs, p.tpt.tpe) match {
                 case (Some(args), TypeRef(_, name)) if args.contains(name) => TypeIdent(args(name).typeSymbol)
