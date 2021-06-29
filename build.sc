@@ -19,7 +19,7 @@ object core extends Module {
     }
     trait CommonCoreModule extends PublishModule with CrossScalaModule {
         override def artifactName = "jam-core"
-        override def publishVersion = "0.0.7"
+        override def publishVersion = "0.0.8"
         override def pomSettings = PomSettings(
             description = artifactName(),
             organization = "com.github.yakivy",

@@ -34,9 +34,11 @@ object JamMacro {
         val defs: Map[TermName, Type] = c.enclosingImpl.collect {
             case DefDef(_, n, _, Nil, tpt, rhs) => (n, tpt, rhs)
             case ValDef(_, n, tpt, rhs) => (n, tpt, rhs)
-        }.flatMap(m => Option(m._2.tpe).orElse(
-            Option(m._3).filter(_ != EmptyTree).map(c.typecheck(_, silent = true, withMacrosDisabled = true).tpe)
-        ).map(m._1 -> _)).toMap
+        }.flatMap(m => Option(m._2.tpe)
+            .orElse(Option(m._2).filter(_ != EmptyTree).map(t => c.typecheck(q"$t", c.TYPEmode).tpe))
+            .orElse(Option(m._3).filter(_ != EmptyTree).map(c.typecheck(_, silent = true, withMacrosDisabled = true).tpe))
+            .map(m._1 -> _)
+        ).toMap
         c.typecheck(q"this").tpe.members
             .filter(m => !m.fullName.startsWith("java.lang.Object") && !m.fullName.startsWith("scala.Any"))
             .filter(_.isTerm).map(_.asTerm).map(s => s.getter.orElse(s).asTerm).toList.distinct

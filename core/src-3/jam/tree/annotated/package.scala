@@ -8,5 +8,6 @@ package object annotated {
      * recursively brews arguments that have a `jam.tree.annotated.brewable` class annotation
      * or throws an error
      */
+    @deprecated("provide brewable instances manually instead")
     inline def brew[J]: J = ${ JamMacro.brewAnnotatedTreeImpl[J] }
 }

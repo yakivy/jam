@@ -15,7 +15,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 ### Quick start
 Latest stable jam dependency:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.0.7"
+"com.github.yakivy" %% "jam-core" % "0.0.8"
 ```
 Usage example:
 ```scala
@@ -44,7 +44,6 @@ trait UserModule {
 Brew types:
 - `jam.brew` - injects constructor arguments if they are provided in `this`, otherwise throws an error
 - `jam.tree.brew` - injects constructor arguments if they are provided in `this` or recursively brews them
-- `jam.tree.annotated.brew` - injects constructor arguments if they are provided in `this`, recursively brews arguments that have a `jam.tree.annotated.brewable` class annotation or throws an error
 ### Implementation details 
 - injection candidates is being searched in `this` instance, so to provide an instance for future injection you need to make it a member of `this`. Examples:
 ```scala
