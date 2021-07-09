@@ -15,7 +15,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 ### Quick start
 Latest stable jam dependency:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.0.9"
+"com.github.yakivy" %% "jam-core" % "0.0.10"
 ```
 Usage example:
 ```scala
@@ -53,6 +53,7 @@ object PasswordValidator {
     def create(databaseAccess: DatabaseAccess): PasswordValidator =
         new PasswordValidator(atabaseAccess, "salt")
 }
+
 trait PasswordValidatorModule extends UserModule {
     val passwordValidator = jam.tree.brew(PasswordValidator.create _)
 }

@@ -115,9 +115,9 @@ object JamMacro {
         createResult: List[List[c.Tree]] => c.Tree
     ): c.Expr[J] = {
         import c.universe._
-        val resolvedArguments = arguments.map(_.map { p =>
+        val resolvedArguments = arguments.map(l => l.headOption.exists(_.isImplicit) -> l).map { case (impl, l) => l.map { p =>
             val ptype = p.typeSignature.substituteTypes(tpe.typeSymbol.asClass.typeParams, tpe.typeArgs)
-            if (p.isImplicit) {
+            if (impl) {
                 q"""def implicitlyWithMessage[A](implicit @_root_.scala.annotation.implicitNotFound(${
                     s"Unable to resolve implicit instance for $prefix($tpe).${p.name}"
                 }) value: A): A = value
@@ -133,7 +133,7 @@ object JamMacro {
                     m => q"this.${m._1.name}"
                 )
             }
-        })
+        }}
         c.Expr(createResult(resolvedArguments))
     }
 }

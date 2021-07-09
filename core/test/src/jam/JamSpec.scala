@@ -7,7 +7,8 @@ class JamSpec extends AnyFreeSpec {
         class WithEmptyArgs
         class WithSingleArg(val a: WithEmptyArgs)
         class WithTwoArgs(val a: WithEmptyArgs, val b: WithSingleArg)
-        class WithImplicitArg(val a: WithEmptyArgs)(implicit val b: WithSingleArg)
+        class WithImplicitArgList(val a: WithEmptyArgs)(implicit val b: WithSingleArg)
+        class WithImplicitArg(val a: WithEmptyArgs, implicit val b: WithSingleArg)
         object ParentObject {
             class InObject(val a: WithEmptyArgs)
         }
@@ -95,6 +96,25 @@ class JamSpec extends AnyFreeSpec {
                 }
             }
 
+
+            "objects for module with implicits" in {
+                implicit val a = new WithSingleArg(new WithEmptyArgs)
+                new {
+                    val b = new WithEmptyArgs
+                    val c = brew[WithImplicitArgList]
+                    assert(c.b.eq(a) && c.a.eq(b))
+                }
+            }
+
+            "objects for module with implicits values" in {
+                new {
+                    val a = new WithEmptyArgs
+                    val b = new WithSingleArg(a)
+                    val c = brew[WithImplicitArg]
+                    assert(c.a.eq(a) && c.b.eq(b))
+                }
+            }
+
             "object trees with custom constructors" in {
                 new {
                     val a = new WithEmptyArgs
@@ -145,14 +165,6 @@ class JamSpec extends AnyFreeSpec {
                     def a()()()()()() = new WithEmptyArgs
                     val c = tree.brew[WithTwoArgs]
                     assert(!c.a.eq(c.b.a))
-                }
-            }
-
-            "object trees for module with implicits" in {
-                implicit val b = new WithSingleArg(new WithEmptyArgs)
-                new {
-                    val d = tree.brew[WithImplicitArg]
-                    assert(d.b.eq(b))
                 }
             }
         }
