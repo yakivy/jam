@@ -1,32 +1,68 @@
 package jam
 
-import jam.tree.annotated.brewable
 import scala.reflect.macros.blackbox.Context
 
 object JamMacro {
     def brewImpl[J: c.WeakTypeTag](c: Context): c.Expr[J] = {
         val candidates = findCandidates(c)
-        brew(c)(candidates, implicitly[c.WeakTypeTag[J]].tpe.dealias, "") { (tpe, prefix) =>
-            c.abort(c.enclosingPosition, s"Unable to find instance for $prefix($tpe)")
-        }
+        val tpe = implicitly[c.WeakTypeTag[J]].tpe.dealias
+        brew(c)(
+            tpe, candidates, getConstructorArguments(c)(tpe, ""), "")(
+            (tpe, prefix) => c.abort(c.enclosingPosition, s"Unable to find instance for $prefix($tpe)"),
+            createResultFromConstructor(c)(tpe, _)
+        )
+    }
+
+    def brewFImpl[J: c.WeakTypeTag](c: Context)(f: c.Tree): c.Tree = {
+        val candidates = findCandidates(c)
+        val tpe = implicitly[c.WeakTypeTag[J]].tpe.dealias
+        brew(c)(
+            tpe, candidates, getFunctionArguments(c)(f), "")(
+            (tpe, prefix) => c.abort(c.enclosingPosition, s"Unable to find instance for $prefix($tpe)"),
+            createResultFromFunction(c)(f, _)
+        ).tree
     }
 
     def brewTreeImpl[J: c.WeakTypeTag](c: Context): c.Expr[J] = {
         val candidates = findCandidates(c)
-        brew(c)(candidates, implicitly[c.WeakTypeTag[J]].tpe.dealias, "") { (tpe, prefix) =>
-            def rec(tpe: c.Type, typePrefix: String): c.Tree = brew(c)(candidates, tpe, typePrefix)(rec(_, _)).tree
-            rec(tpe, prefix)
-        }
+        val tpe = implicitly[c.WeakTypeTag[J]].tpe.dealias
+        brew(c)(
+            tpe, candidates, getConstructorArguments(c)(tpe, ""), "")(
+            (tpe, prefix) => {
+                def rec(tpe: c.Type, prefix: String): c.Tree = brew(c)(
+                    tpe, candidates, getConstructorArguments(c)(tpe, prefix), prefix)(
+                    rec(_, _), createResultFromConstructor(c)(tpe, _)
+                ).tree
+                rec(tpe, prefix)
+            },
+            createResultFromConstructor(c)(tpe, _)
+        )
     }
 
-    def brewAnnotatedTreeImpl[J: c.WeakTypeTag](c: Context): c.Expr[J] = {
+    def brewFTreeImpl[J: c.WeakTypeTag](c: Context)(f: c.Tree): c.Expr[J] = {
         val candidates = findCandidates(c)
-        brew(c)(candidates, implicitly[c.WeakTypeTag[J]].tpe.dealias, "") { (tpe, prefix) =>
-            if (tpe.typeSymbol.annotations.exists(_.tree.tpe =:= c.typeOf[brewable])) {
-                def rec(tpe: c.Type, prefix: String): c.Tree = brew(c)(candidates, tpe, prefix)(rec(_, _)).tree
+        val tpe = implicitly[c.WeakTypeTag[J]].tpe.dealias
+        brew(c)(
+            tpe, candidates, getFunctionArguments(c)(f), "")(
+            (tpe, prefix) => {
+                def rec(tpe: c.Type, prefix: String): c.Tree = brew(c)(
+                    tpe, candidates, getConstructorArguments(c)(tpe, prefix), prefix)(
+                    rec(_, _), createResultFromConstructor(c)(tpe, _)
+                ).tree
                 rec(tpe, prefix)
-            } else c.abort(c.enclosingPosition, s"Unable to find instance for $prefix($tpe)")
-        }
+            },
+            createResultFromFunction(c)(f, _)
+        )
+    }
+
+    private def createResultFromConstructor(c: Context)(tpe: c.Type, args: List[List[c.Tree]]): c.Tree = {
+        import c.universe._
+        q"new $tpe(...$args)"
+    }
+
+    private def createResultFromFunction(c: Context)(f: c.Tree, args: List[List[c.Tree]]): c.Tree = {
+        import c.universe._
+        q"$f(...$args)"
     }
 
     private def findCandidates(c: Context): List[(c.universe.TermSymbol, c.universe.Type)] = {
@@ -35,8 +71,12 @@ object JamMacro {
             case DefDef(_, n, _, Nil, tpt, rhs) => (n, tpt, rhs)
             case ValDef(_, n, tpt, rhs) => (n, tpt, rhs)
         }.flatMap(m => Option(m._2.tpe)
-            .orElse(Option(m._2).filter(_ != EmptyTree).map(t => c.typecheck(q"$t", c.TYPEmode).tpe))
-            .orElse(Option(m._3).filter(_ != EmptyTree).map(c.typecheck(_, silent = true, withMacrosDisabled = true).tpe))
+            .orElse(Option(m._2).filter(_ != EmptyTree).map(t =>
+                c.typecheck(q"$t", c.TYPEmode, silent = true, withMacrosDisabled = true).tpe
+            ))
+            .orElse(Option(m._3).filter(_ != EmptyTree).map(
+                c.typecheck(_, silent = true, withMacrosDisabled = true).tpe
+            ))
             .map(m._1 -> _)
         ).toMap
         c.typecheck(q"this").tpe.members
@@ -45,20 +85,37 @@ object JamMacro {
             .map(m => m -> defs.getOrElse(m.name, m.typeSignature))
     }
 
-    private def brew[J](
-        c: Context)(
-        candidates: List[(c.universe.TermSymbol, c.universe.Type)], tpe: c.Type, prefix: String)(
-        find: (c.Type, String) => c.Tree
-    ): c.Expr[J] = {
-        import c.universe._
+    private def getConstructorArguments(c: Context)(tpe: c.Type, prefix: String): List[List[c.Symbol]] = {
         val constructors = tpe.members
             .filter(m => m.isMethod && m.isPublic).map(_.asMethod)
-            .filter(m => m.isConstructor && m.typeSignatureIn(tpe).finalResultType <:< tpe)
+            .filter(m => m.isConstructor && m.typeSignatureIn(tpe).finalResultType =:= tpe)
         if (constructors.isEmpty)
             c.abort(c.enclosingPosition, s"Unable to find public constructor for $prefix($tpe)")
         if (constructors.size > 1)
             c.abort(c.enclosingPosition, s"More than one primary constructor was found for $prefix($tpe)")
-        val constructorArgs = constructors.head.paramLists.map(_.map { p =>
+        constructors.head.paramLists
+    }
+
+    private def getFunctionArguments(c: Context)(f: c.Tree): List[List[c.Symbol]] = {
+        import c.universe._
+        f match {
+            case Block(Nil, Function(args, _)) => List(args.map(_.symbol))
+            case Function(args, _) => List(args.map(_.symbol))
+            case _ => c.abort(c.enclosingPosition, s"Unsupported function type ${f.tpe}")
+        }
+    }
+
+    private def brew[J](
+        c: Context)(
+        tpe: c.Type,
+        candidates: List[(c.universe.TermSymbol, c.universe.Type)],
+        arguments: List[List[c.Symbol]],
+        prefix: String)(
+        resolveVacancy: (c.Type, String) => c.Tree,
+        createResult: List[List[c.Tree]] => c.Tree
+    ): c.Expr[J] = {
+        import c.universe._
+        val resolvedArguments = arguments.map(_.map { p =>
             val ptype = p.typeSignature.substituteTypes(tpe.typeSymbol.asClass.typeParams, tpe.typeArgs)
             if (p.isImplicit) {
                 q"""def implicitlyWithMessage[A](implicit @_root_.scala.annotation.implicitNotFound(${
@@ -67,16 +124,16 @@ object JamMacro {
                implicitlyWithMessage[${p.typeSignature}]"""
             } else {
                 val parameterCandidates = candidates.filter { m =>
-                    m._2.finalResultType <:< ptype && (!m._1.isMethod || m._1.asMethod.paramLists.flatten.isEmpty)
+                    m._2.finalResultType =:= ptype && (!m._1.isMethod || m._1.asMethod.paramLists.flatten.isEmpty)
                 }
                 if (parameterCandidates.size > 1)
                     c.abort(c.enclosingPosition, s"More than one injection candidate was found for $prefix($tpe).${p.name}")
                 parameterCandidates.headOption.fold(
-                    find(ptype, s"$prefix($tpe).${p.name}"))(
+                    resolveVacancy(ptype, s"$prefix($tpe).${p.name}"))(
                     m => q"this.${m._1.name}"
                 )
             }
         })
-        c.Expr(q"new $tpe(...$constructorArgs)")
+        c.Expr(createResult(resolvedArguments))
     }
 }

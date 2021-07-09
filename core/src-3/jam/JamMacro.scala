@@ -1,32 +1,66 @@
 package jam
 
-import jam.tree.annotated.brewable
 import scala.quoted.*
 
 object JamMacro {
     def brewImpl[J](using q: Quotes)(using Type[J]): Expr[J] = {
         import q.reflect.*
-        brew(findSelf, TypeTree.of[J], ""){ (ttr, prefix) =>
-            report.throwError(s"Unable to find instance for $prefix(${ttr.show})")
-        }.asExprOf
+        val ttr = TypeTree.of[J]
+        val constructor = getConstructor(ttr, "")
+        brew(ttr, findSelf, constructor._2, "")(
+            (ttr, prefix) => report.throwError(s"Unable to find instance for $prefix(${ttr.show})"),
+            createResultFromConstructor(ttr, constructor._1, _)
+        ).asExprOf
     }
+
+    def brewFImpl[J](using q: Quotes)(using Type[J])(f: Expr[?]): Expr[J] = {
+        import q.reflect.*
+        val ttr = TypeTree.of[J]
+        val constructor = getFunctionArguments(f.asTerm)
+        brew(ttr, findSelf, constructor, "")(
+            (ttr, prefix) => report.throwError(s"Unable to find instance for $prefix(${ttr.show})"),
+            createResultFromFunction(f.asTerm, _)
+        ).asExprOf
+    }
+
     def brewTreeImpl[J](using q: Quotes)(using Type[J]): Expr[J] = {
         import q.reflect.*
+        val ttr = TypeTree.of[J]
         val self = findSelf
-        brew(self, TypeTree.of[J], "") { (ttr, prefix) =>
-            def rec(ttr: TypeTree, typePrefix: String): Expr[?] = brew(self, ttr, typePrefix)(rec(_, _))
-            rec(ttr, prefix)
-        }.asExprOf
-    }
-    def brewAnnotatedTreeImpl[J](using q: Quotes)(using Type[J]): Expr[J] = {
-        import q.reflect.*
-        val self = findSelf
-        brew(self, TypeTree.of[J], "") { (ttr, prefix) =>
-            if (ttr.tpe.typeSymbol.annotations.exists(_.tpe =:= TypeRepr.of[brewable])) {
-                def rec(ttr: TypeTree, prefix: String): Expr[?] = brew(self, ttr, prefix)(rec(_, _))
+        val constructor = getConstructor(ttr, "")
+        brew(ttr, self, constructor._2, "")(
+            (ttr, prefix) => {
+                def rec(ttr: TypeTree, typePrefix: String): q.reflect.Term = {
+                    val constructor = getConstructor(ttr, prefix)
+                    brew(
+                        ttr, self, constructor._2, typePrefix)(
+                        rec(_, _), createResultFromConstructor(ttr, constructor._1, _)
+                    ).asTerm
+                }
                 rec(ttr, prefix)
-            } else report.throwError(s"Unable to find instance for $prefix(${ttr.show})")
-        }.asExprOf
+            },
+            createResultFromConstructor(ttr, constructor._1, _)
+        ).asExprOf
+    }
+
+    def brewFTreeImpl[J](using q: Quotes)(using Type[J])(f: Expr[?]): Expr[J] = {
+        import q.reflect.*
+        val ttr = TypeTree.of[J]
+        val self = findSelf
+        val constructor = getFunctionArguments(f.asTerm)
+        brew(ttr, self, constructor, "")(
+            (ttr, prefix) => {
+                def rec(ttr: TypeTree, typePrefix: String): q.reflect.Term = {
+                    val constructor = getConstructor(ttr, prefix)
+                    brew(
+                        ttr, self, constructor._2, typePrefix)(
+                        rec(_, _), createResultFromConstructor(ttr, constructor._1, _)
+                    ).asTerm
+                }
+                rec(ttr, prefix)
+            },
+            createResultFromFunction(f.asTerm, _)
+        ).asExprOf
     }
 
     private def findSelf(using q: Quotes): q.reflect.This = {
@@ -40,27 +74,67 @@ object JamMacro {
             .getOrElse(report.throwError(s"Unable to access 'this'"))
     }
 
-    private def brew(
-        using q: Quotes)(
-        self: q.reflect.This,
-        ttr: q.reflect.TypeTree,
-        prefix: String)(
-        find: (q.reflect.TypeTree, String) => Expr[?]
-    ): Expr[?] = {
+    private def getConstructor(
+        using q: Quotes)(ttr: q.reflect.TypeTree, prefix: String
+    ): (q.reflect.Symbol, List[(Boolean, List[q.reflect.ValDef])]) = {
         import q.reflect.*
-        val ttrArgs = ttr.tpe match {
-            case t: AppliedType => Option(ttr.tpe.typeSymbol.memberTypes.map(_.name).zip(t.args).toMap)
-            case _ => None
-        }
+        val ttrArgs = getTtrArguments(ttr)
         val constructors = ttr.tpe.typeSymbol.declarations
             .filter(m => m.isClassConstructor).map(_.tree)
             .collect { case m: DefDef if ttrArgs.fold(
                 m.returnTpt.tpe)(
                 args => m.returnTpt.tpe.asInstanceOf[AppliedType].tycon.appliedTo(args.values.toList)
-            ) <:< ttr.tpe => m }
+            ) =:= ttr.tpe => m }
         if (constructors.isEmpty) report.throwError(s"Unable to find public constructor for $prefix(${ttr.show})")
         if (constructors.size > 1)
             report.throwError(s"More than one primary constructor was found for $prefix(${ttr.show})")
+        constructors.head.symbol -> constructors.head.termParamss.map(tp => tp.isImplicit -> tp.params)
+    }
+
+    private def createResultFromConstructor(
+        using q: Quotes)(ttr: q.reflect.TypeTree, constructor: q.reflect.Symbol, args: List[List[q.reflect.Term]]
+    ): q.reflect.Term = {
+        import q.reflect.*
+        val ttrArgs = getTtrArguments(ttr)
+        val typedConstructor = ttrArgs.map(_.values.map(t => TypeIdent(t.typeSymbol)).toList)
+            .foldLeft[Term](Select(New(ttr), constructor))(TypeApply(_, _))
+        typedConstructor.appliedToArgss(args)
+    }
+
+    private def createResultFromFunction(
+        using q: Quotes)(f: q.reflect.Term, args: List[List[q.reflect.Term]]
+    ): q.reflect.Term = {
+        import q.reflect.*
+        Select(f, f.tpe.typeSymbol.memberMethod("apply").head).appliedToArgss(args)
+    }
+
+    private def getFunctionArguments(using q: Quotes)(f: q.reflect.Tree): List[(Boolean, List[q.reflect.ValDef])] = {
+        import q.reflect.*
+        f match {
+            case Inlined(_, _, Lambda(args, _)) => List(false -> args)
+            case _ => report.throwError(s"Unsupported function type ${f.show}")
+        }
+    }
+
+    private def getTtrArguments(using q: Quotes)(ttr: q.reflect.TypeTree): Option[Map[String, q.reflect.TypeRepr]] = {
+        import q.reflect.*
+        ttr.tpe match {
+            case t: AppliedType => Option(ttr.tpe.typeSymbol.memberTypes.map(_.name).zip(t.args).toMap)
+            case _ => None
+        }
+    }
+
+    private def brew(
+        using q: Quotes)(
+        ttr: q.reflect.TypeTree,
+        self: q.reflect.This,
+        arguments: List[(Boolean, List[q.reflect.ValDef])],
+        prefix: String)(
+        resolveVacancy: (q.reflect.TypeTree, String) => q.reflect.Term,
+        createResult: List[List[q.reflect.Term]] => q.reflect.Term
+    ): Expr[?] = {
+        import q.reflect.*
+        val ttrArgs = getTtrArguments(ttr)
         val candidates = (self.tpe.typeSymbol.memberMethods ::: self.tpe.typeSymbol.memberFields)
             .filter(m => !m.fullName.startsWith("java.lang.Object") && !m.fullName.startsWith("scala.Any"))
             .map(_.tree).collect {
@@ -68,12 +142,12 @@ object JamMacro {
                 case m: DefDef if m.termParamss.flatMap(_.params).isEmpty =>
                     (m.symbol, m.termParamss.map(_ => Nil), m.rhs.map(_.tpe).getOrElse(m.returnTpt.tpe))
             }
-        val constructorArgs = constructors.head.termParamss.map(tp => tp.params.map(p =>
+        val constructorArgs = arguments.map((impl, l) => l.map(p =>
             val ptpt = (ttrArgs, p.tpt.tpe) match {
                 case (Some(args), TypeRef(_, name)) if args.contains(name) => TypeIdent(args(name).typeSymbol)
                 case (_, _) => p.tpt
             }
-            if (tp.isImplicit) ptpt.tpe.asType match {
+            if (impl) ptpt.tpe.asType match {
                 case '[tpe] => (Expr.summon[tpe] match {
                     case Some(arg) => arg
                     case _ => report.throwError(
@@ -81,18 +155,16 @@ object JamMacro {
                     )
                 }).asTerm
             } else {
-                val parameterCandidates = candidates.filter(_._3 <:< ptpt.tpe)
+                val parameterCandidates = candidates.filter(_._3 =:= ptpt.tpe)
                 if (parameterCandidates.size > 1) report.throwError(
                     s"More than one injection candidate was found for $prefix(${ttr.show}).${p.name}"
                 )
                 parameterCandidates.headOption.fold(
-                    find(ptpt, s"$prefix(${ttr.show}).${p.name}").asTerm)(
+                    resolveVacancy(ptpt, s"$prefix(${ttr.show}).${p.name}"))(
                     m => m._2.foldLeft[Term](Select(self, m._1))(Apply(_, _))
                 )
             }
         ))
-        val typedConstructor = ttrArgs.map(_.values.map(t => TypeIdent(t.typeSymbol)).toList)
-            .foldLeft[Term](Select(New(ttr), constructors.head.symbol))(TypeApply(_, _))
-        constructorArgs.map(_.map(_.asExpr.asTerm)).foldLeft[Term](typedConstructor)(Apply(_, _)).asExpr
+        createResult(constructorArgs.map(_.map(_.asExpr.asTerm))).asExpr
     }
 }

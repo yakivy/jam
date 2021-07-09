@@ -10,12 +10,12 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 - is able to inject a whole object tree, not only constructor arguments
 - searches candidates in `this`
 - supports Scala 3, Scala JS, Scala Native
-- incredibly simple: 3 exposed methods, ~100 lines of code
+- incredibly simple: 2 exposed methods, ~100 lines of code
 
 ### Quick start
 Latest stable jam dependency:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.0.8"
+"com.github.yakivy" %% "jam-core" % "0.0.9"
 ```
 Usage example:
 ```scala
@@ -41,9 +41,23 @@ trait UserModule {
     )
 }
 ```
-Brew types:
+### Brew types
 - `jam.brew` - injects constructor arguments if they are provided in `this`, otherwise throws an error
 - `jam.tree.brew` - injects constructor arguments if they are provided in `this` or recursively brews them
+
+### Brew function
+If the constructor cannot be resolved automatically or you just need to create an object with an arbitrary function, it is possible to use brew with argument:
+```scala
+class PasswordValidator(databaseAccess: DatabaseAccess, salt: String)
+object PasswordValidator {
+    def create(databaseAccess: DatabaseAccess): PasswordValidator =
+        new PasswordValidator(atabaseAccess, "salt")
+}
+trait PasswordValidatorModule extends UserModule {
+    val passwordValidator = jam.tree.brew(PasswordValidator.create _)
+}
+```
+
 ### Implementation details 
 - injection candidates is being searched in `this` instance, so to provide an instance for future injection you need to make it a member of `this`. Examples:
 ```scala
@@ -72,23 +86,16 @@ trait A {
     }
 }
 ```
-- library injects only non implicit constructor arguments, implicits will be resolved by scalac
-- jam is intended to be minimal, features like scopes, object lifecycles or factory methods should be implemented manually, for example:
+- library injects only non implicit constructor arguments, implicits will be resolved by compiler
+- jam is intended to be minimal, features like scopes or object lifecycles should be implemented manually, for example:
 ```scala
 //to release resources use cats.effect.Resource
 dbClientResource.use { dbClient =>
     val container = new {
-        //to create an object with custom constructor define val or def member
-        val config = Config.fromFile("config.conf")
-        //to create singleton define val member
+        //to create a singleton use val member
         val userStorage = new UserStorage(dbClient)
-        //to create custom factory method define def member
-        def userService = new UserService(
-            userStorage,
-            config.withFallback(new Config())
-        )
 
-        ...brewing //provided members will be used here
+        ...brewing
     }
     ...logic that utilizes container
 } // client will be closed
