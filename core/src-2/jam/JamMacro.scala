@@ -90,10 +90,11 @@ object JamMacro {
         val allConstructors = tpe.members
             .filter(m => m.isMethod && m.isPublic).map(_.asMethod)
             .filter(m => m.isConstructor && m.typeSignatureIn(tpe).finalResultType =:= tpe)
-        val hasPrimaryConstructorAnnotation = (m: c.universe.MethodSymbol) => m.annotations.exists(_.toString == "javax.inject.Inject")
-        val annotatedConstructors = allConstructors.filter(hasPrimaryConstructorAnnotation)
         if (allConstructors.isEmpty)
             c.abort(c.enclosingPosition, s"Unable to find public constructor for $prefix($tpe)")
+
+        val hasPrimaryConstructorAnnotation = (m: c.universe.MethodSymbol) => m.annotations.exists(_.toString == "javax.inject.Inject")
+        val annotatedConstructors = allConstructors.filter(hasPrimaryConstructorAnnotation)
         val constructors = if (annotatedConstructors.size >= 1) annotatedConstructors else allConstructors
         if (constructors.size > 1)
             c.abort(c.enclosingPosition, s"More than one primary constructor was found for $prefix($tpe)")
