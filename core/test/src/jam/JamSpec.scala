@@ -7,6 +7,9 @@ class JamSpec extends AnyFreeSpec {
         class WithEmptyArgs
         class WithSingleArg(val a: WithEmptyArgs)
         class WithTwoArgs(val a: WithEmptyArgs, val b: WithSingleArg)
+        class WithChild
+        class WithChildChild extends WithChild
+        class WithArgWithChild(val a: WithChild)
         class WithImplicitArgList(val a: WithEmptyArgs)(implicit val b: WithSingleArg)
         class WithImplicitArg(val a: WithEmptyArgs, implicit val b: WithSingleArg)
         object ParentObject {
@@ -96,6 +99,15 @@ class JamSpec extends AnyFreeSpec {
                 }
             }
 
+            "objects with argument with child" in {
+                new {
+                    def `null`: Null = null
+                    def absurd: Nothing = ???
+                    val a = brew[WithChildChild]
+                    val b = brew[WithArgWithChild]
+                    assert(b.a.eq(a))
+                }
+            }
 
             "objects for module with implicits" in {
                 implicit val a = new WithSingleArg(new WithEmptyArgs)

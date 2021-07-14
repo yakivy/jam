@@ -83,6 +83,7 @@ object JamMacro {
             .filter(m => !m.fullName.startsWith("java.lang.Object") && !m.fullName.startsWith("scala.Any"))
             .filter(_.isTerm).map(_.asTerm).map(s => s.getter.orElse(s).asTerm).toList.distinct
             .map(m => m -> defs.getOrElse(m.name, m.typeSignature))
+            .filter(m => !(m._2 =:= typeOf[Nothing]) && !(m._2 =:= typeOf[Null]))
     }
 
     private def getConstructorArguments(c: Context)(tpe: c.Type, prefix: String): List[List[c.Symbol]] = {
@@ -124,7 +125,7 @@ object JamMacro {
                implicitlyWithMessage[${p.typeSignature}]"""
             } else {
                 val parameterCandidates = candidates.filter { m =>
-                    m._2.finalResultType =:= ptype && (!m._1.isMethod || m._1.asMethod.paramLists.flatten.isEmpty)
+                    m._2.finalResultType <:< ptype && (!m._1.isMethod || m._1.asMethod.paramLists.flatten.isEmpty)
                 }
                 if (parameterCandidates.size > 1)
                     c.abort(c.enclosingPosition, s"More than one injection candidate was found for $prefix($tpe).${p.name}")
