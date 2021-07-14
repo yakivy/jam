@@ -36,7 +36,10 @@ object core extends Module {
         override def millSourcePath = super.millSourcePath / os.up
     }
     trait CommonTestModule extends ScalaModule with TestModule {
-        override def ivyDeps = super.ivyDeps() ++ Agg(ivy"org.scalatest::scalatest::${versions.scalatest}")
+        override def ivyDeps = super.ivyDeps() ++ Agg(
+            ivy"org.scalatest::scalatest::${versions.scalatest}",
+            ivy"javax.inject:javax.inject:1",
+        )
         def testFrameworks = Seq("org.scalatest.tools.Framework")
     }
     object jvm extends Cross[JvmModule](versions.cross: _*)

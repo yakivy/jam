@@ -100,13 +100,18 @@ object JamMacro {
     ): (q.reflect.Symbol, List[(Boolean, List[q.reflect.ValDef])]) = {
         import q.reflect.*
         val ttrArgs = getTtrArguments(ttr)
-        val constructors = ttr.tpe.typeSymbol.declarations
+        val allConstructors = ttr.tpe.typeSymbol.declarations
             .filter(m => m.isClassConstructor).map(_.tree)
             .collect { case m: DefDef if ttrArgs.fold(
                 m.returnTpt.tpe)(
                 args => m.returnTpt.tpe.asInstanceOf[AppliedType].tycon.appliedTo(args.values.toList)
             ) =:= ttr.tpe => m }
-        if (constructors.isEmpty) report.throwError(s"Unable to find public constructor for $prefix(${ttr.show})")
+
+        if (allConstructors.isEmpty) report.throwError(s"Unable to find public constructor for $prefix(${ttr.show})")
+
+        val hasPrimaryConstructorAnnotation = (ctor: q.reflect.DefDef) => ctor.symbol.annotations.map(_.tpe.show).contains("javax.inject.Inject")
+        val annotatedConstructors = allConstructors.filter(hasPrimaryConstructorAnnotation)
+        val constructors = if (annotatedConstructors.size >= 1) annotatedConstructors else allConstructors
         if (constructors.size > 1)
             report.throwError(s"More than one primary constructor was found for $prefix(${ttr.show})")
         constructors.head.symbol -> constructors.head.termParamss.map(tp => tp.isImplicit -> tp.params)
