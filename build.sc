@@ -6,7 +6,7 @@ import mill.scalalib.publish._
 
 object core extends Module {
     val versions = new {
-        val release = "0.0.11"
+        val release = "0.0.12"
 
         val scala212 = "2.12.13"
         val scala213 = "2.13.5"
