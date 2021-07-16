@@ -15,7 +15,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 ### Quick start
 Latest stable jam dependency:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.0.11"
+"com.github.yakivy" %% "jam-core" % "0.0.12"
 ```
 Usage example:
 ```scala
@@ -75,7 +75,7 @@ val container = new {
 trait A {
     def b(): String = {
         val a = new A
-        ...brewing //new A instance will be created
+        ...brewing //val a will be ignored
     }
 }
 

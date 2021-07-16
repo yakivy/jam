@@ -29,11 +29,10 @@ class JamSpec extends AnyFreeSpec {
         }
         class WithGenericAndPlainArgs[A](val a: A, val b: WithSingleArg)
         class WithStringArg(val a: String)
-        class WithAnnotatedConstructor(val x: Int) {
+        class WithAnnotatedConstructor(val a: Int) {
             @Inject()
-            def this(s: String) = this(s.length)
-
-            def this(d: Double) = this(d.toInt)
+            def this(a: String) = this(a.length)
+            def this(a: Double) = this(a.toInt)
         }
 
         "should brew" - {
@@ -85,9 +84,9 @@ class JamSpec extends AnyFreeSpec {
 
             "objects for classes with an annotated primary constructor" in {
                 new {
-                    val s = "string"
-                    val result = brew[WithAnnotatedConstructor]
-                    assert(result.x == (s.length))
+                    val a = "string"
+                    val b = brew[WithAnnotatedConstructor]
+                    assert(b.a == a.length)
                 }
             }
 

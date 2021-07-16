@@ -87,18 +87,16 @@ object JamMacro {
     }
 
     private def getConstructorArguments(c: Context)(tpe: c.Type, prefix: String): List[List[c.Symbol]] = {
-        val allConstructors = tpe.members
+        val constructors = tpe.members
             .filter(m => m.isMethod && m.isPublic).map(_.asMethod)
             .filter(m => m.isConstructor && m.typeSignatureIn(tpe).finalResultType =:= tpe)
-        if (allConstructors.isEmpty)
+        if (constructors.isEmpty)
             c.abort(c.enclosingPosition, s"Unable to find public constructor for $prefix($tpe)")
-
-        val hasPrimaryConstructorAnnotation = (m: c.universe.MethodSymbol) => m.annotations.exists(_.toString == "javax.inject.Inject")
-        val annotatedConstructors = allConstructors.filter(hasPrimaryConstructorAnnotation)
-        val constructors = if (annotatedConstructors.size >= 1) annotatedConstructors else allConstructors
-        if (constructors.size > 1)
+        val annotatedConstructors = constructors.filter(_.annotations.exists(_.tree.tpe.typeSymbol.fullName == "javax.inject.Inject"))
+        val primaryConstructors = if (annotatedConstructors.nonEmpty) annotatedConstructors else constructors
+        if (primaryConstructors.size > 1)
             c.abort(c.enclosingPosition, s"More than one primary constructor was found for $prefix($tpe)")
-        constructors.head.paramLists
+        primaryConstructors.head.paramLists
     }
 
     private def getFunctionArguments(c: Context)(f: c.Tree): List[List[c.Symbol]] = {
