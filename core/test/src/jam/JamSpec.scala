@@ -1,5 +1,6 @@
 package jam
 
+import javax.inject.Inject
 import org.scalatest.freespec.AnyFreeSpec
 
 class JamSpec extends AnyFreeSpec {
@@ -28,6 +29,12 @@ class JamSpec extends AnyFreeSpec {
         }
         class WithGenericAndPlainArgs[A](val a: A, val b: WithSingleArg)
         class WithStringArg(val a: String)
+        class WithAnnotatedConstructor(val x: Int) {
+            @Inject()
+            def this(s: String) = this(s.length)
+
+            def this(d: Double) = this(d.toInt)
+        }
 
         "should brew" - {
 
@@ -73,6 +80,14 @@ class JamSpec extends AnyFreeSpec {
                     val a = "string"
                     val b = brew[WithStringArg]
                     assert(b.a.eq(a))
+                }
+            }
+
+            "objects for classes with an annotated primary constructor" in {
+                new {
+                    val s = "string"
+                    val result = brew[WithAnnotatedConstructor]
+                    assert(result.x == (s.length))
                 }
             }
 
