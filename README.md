@@ -87,17 +87,6 @@ trait A {
     }
 }
 ```
+- `val` member works like singleton provider (instance will be reused for all injections in `this` score), `def` member works like prototype provider (one method call per each injection)
 - library injects only non implicit constructor arguments, implicits will be resolved by compiler
-- jam is intended to be minimal, features like scopes or object lifecycles should be implemented manually, for example:
-```scala
-//to release resources use cats.effect.Resource
-dbClientResource.use { dbClient =>
-    val container = new {
-        //to create a singleton use val member
-        val userStorage = new UserStorage(dbClient)
-
-        ...brewing
-    }
-    ...logic that utilizes container
-} // client will be closed
-```
+- jam is intended to be minimal, features like scopes or object lifecycles should be implemented manually
