@@ -13,19 +13,27 @@ class ReadmeSpec extends AnyFreeSpec {
             def create(databaseAccess: DatabaseAccess): PasswordValidator =
                 new PasswordValidator(databaseAccess, "salt")
         }
+        class QuotaChecker(val databaseAccess: DatabaseAccess)
 
         trait UserModule {
-            val singletonDatabaseAccess = jam.tree.brew[DatabaseAccess]
-            val userStatusReader = jam.tree.brew[UserStatusReader]
+            val singletonDatabaseAccess = jam.brewRec[DatabaseAccess]
+            val userStatusReader = jam.brewRec[UserStatusReader]
         }
 
         trait PasswordValidatorModule extends UserModule {
-            val passwordValidator = jam.tree.brew(PasswordValidator.create _)
+            val passwordValidator = jam.brewWith(PasswordValidator.create _)
         }
 
-        new PasswordValidatorModule {
+        trait QuotaCheckerModule {
+            object ResolvedUserModule extends UserModule
+
+            val quotaChecker = jam.brewFrom[QuotaChecker](ResolvedUserModule)
+        }
+
+        new PasswordValidatorModule with QuotaCheckerModule {
             assert(userStatusReader.userFinder.databaseAccess.eq(singletonDatabaseAccess))
             assert(passwordValidator.databaseAccess.eq(singletonDatabaseAccess))
+            assert(quotaChecker.databaseAccess.eq(ResolvedUserModule.singletonDatabaseAccess))
         }
     }
 }

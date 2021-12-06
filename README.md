@@ -7,15 +7,15 @@
 Jam is an incredibly simple DI Scala library.
 
 Essential differences from [macwire](https://github.com/softwaremill/macwire):
-- is able to inject a whole object tree, not only constructor arguments
-- searches candidates in `this`
+- is simpler, faster and more predictable
 - supports Scala 3, Scala JS, Scala Native
-- incredibly simple: 2 exposed methods, ~100 lines of code
+- is able to inject arguments recursively
+- searches candidates in `this`
 
 ### Quick start
 Latest stable jam dependency:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.0.12"
+"com.github.yakivy" %% "jam-core" % "0.1.0"
 ```
 Usage example:
 ```scala
@@ -25,8 +25,8 @@ class UserFinder(databaseAccess: DatabaseAccess, securityFilter: SecurityFilter)
 class UserStatusReader(userFinder: UserFinder)
 
 trait UserModule {
-    val singletonDatabaseAccess = jam.tree.brew[DatabaseAccess]
-    val userStatusReader = jam.tree.brew[UserStatusReader]
+    val singletonDatabaseAccess = jam.brewRec[DatabaseAccess]
+    val userStatusReader = jam.brewRec[UserStatusReader]
 }
 ```
 Macro output:
@@ -43,10 +43,8 @@ trait UserModule {
 ```
 ### Brew types
 - `jam.brew` - injects constructor arguments if they are provided in `this`, otherwise throws an error
-- `jam.tree.brew` - injects constructor arguments if they are provided in `this` or recursively brews them
-
-### Brew function
-If the constructor cannot be resolved automatically or you just need to create an object with an arbitrary function, it is possible to use brew with argument:
+- `jam.brewRec` - injects constructor arguments if they are provided in `this` or recursively brews them
+- `jam.brewWith` - injects lambda arguments if they are provided in `this`, otherwise throws an error, especially useful when constructor cannot be resolved automatically:
 ```scala
 class PasswordValidator(databaseAccess: DatabaseAccess, salt: String)
 object PasswordValidator {
@@ -55,7 +53,17 @@ object PasswordValidator {
 }
 
 trait PasswordValidatorModule extends UserModule {
-    val passwordValidator = jam.tree.brew(PasswordValidator.create _)
+    val passwordValidator = jam.brewWith(PasswordValidator.create _)
+}
+```
+- `jam.brewFrom` - injects constructor arguments if they are provided in `self` argument, otherwise throws an error:
+```scala
+class QuotaChecker(databaseAccess: DatabaseAccess)
+
+trait QuotaCheckerModule {
+    object ResolvedUserModule extends UserModule
+
+    val quotaChecker = jam.brewFrom[QuotaChecker](ResolvedUserModule)
 }
 ```
 
@@ -90,3 +98,11 @@ trait A {
 - `val` member works like singleton provider (instance will be reused for all injections in `this` score), `def` member works like prototype provider (one method call per each injection)
 - library injects only non implicit constructor arguments, implicits will be resolved by compiler
 - jam is intended to be minimal, features like scopes or object lifecycles should be implemented manually
+
+### Changelog
+
+#### 0.1.0:
+- fix import ambiguity: `jam.tree.brew` was renamed to `jam.brewRec`
+- fix method overload ambiguity: `jam.brew(f)` was renamed to `jam.brewWith(f)`
+- allow passing an instance to brew from (instead of `this`): `jam.brewFrom`
+- various refactorings and cleanups
