@@ -4,12 +4,12 @@
 [![Build Status](https://travis-ci.com/yakivy/jam.svg?branch=master)](https://travis-ci.com/yakivy/jam)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Jam is an incredibly simple DI Scala library.
+Jam is an elementary DI Scala library.
 
 Essential differences from [macwire](https://github.com/softwaremill/macwire):
-- is simpler, faster and more predictable
+- is simpler, faster, and more predictable
 - supports Scala 3, Scala JS, Scala Native
-- is able to inject arguments recursively
+- can inject arguments recursively
 - searches candidates in `this`
 
 ### Quick start
@@ -44,12 +44,12 @@ trait UserModule {
 ### Brew types
 - `jam.brew` - injects constructor arguments if they are provided in `this`, otherwise throws an error
 - `jam.brewRec` - injects constructor arguments if they are provided in `this` or recursively brews them
-- `jam.brewWith` - injects lambda arguments if they are provided in `this`, otherwise throws an error, especially useful when constructor cannot be resolved automatically:
+- `jam.brewWith` - injects lambda arguments if they are provided in `this`, otherwise throws an error, especially useful when the constructor cannot be resolved automatically:
 ```scala
 class PasswordValidator(databaseAccess: DatabaseAccess, salt: String)
 object PasswordValidator {
     def create(databaseAccess: DatabaseAccess): PasswordValidator =
-        new PasswordValidator(atabaseAccess, "salt")
+        new PasswordValidator(databaseAccess, "salt")
 }
 
 trait PasswordValidatorModule extends UserModule {
@@ -68,7 +68,7 @@ trait QuotaCheckerModule {
 ```
 
 ### Implementation details 
-- injection candidates is being searched in `this` instance, so to provide an instance for future injection you need to make it a member of `this`. Examples:
+- injection candidates are being searched in `this` instance, so to provide an instance for future injection, you need to make it a member of `this`. Examples:
 ```scala
 trait A {
     val a = new A
@@ -95,9 +95,9 @@ trait A {
     }
 }
 ```
-- `val` member works like singleton provider (instance will be reused for all injections in `this` score), `def` member works like prototype provider (one method call per each injection)
-- library injects only non implicit constructor arguments, implicits will be resolved by compiler
-- jam is intended to be minimal, features like scopes or object lifecycles should be implemented manually
+- `val` member works like a singleton provider (instance will be reused for all injections in `this` score), `def` member works like a prototype provider (one method call per each injection)
+- library injects only non-implicit constructor arguments; implicits will be resolved by the compiler
+- jam is intended to be minimal; features like scopes or object lifecycles should be implemented manually
 
 ### Changelog
 
