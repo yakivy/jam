@@ -4,7 +4,7 @@
 [![Build Status](https://travis-ci.com/yakivy/jam.svg?branch=master)](https://travis-ci.com/yakivy/jam)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Jam is an elementary DI Scala library.
+Jam is an incredibly simple DI Scala library.
 
 Essential differences from [macwire](https://github.com/softwaremill/macwire):
 - is simpler, faster, and more predictable
