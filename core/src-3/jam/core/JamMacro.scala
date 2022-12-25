@@ -1,47 +1,52 @@
-package jam
+package jam.core
 
+import jam.JamDsl
+import jam.JamConfig
 import scala.quoted.*
 
 object JamMacro {
-    def brewImpl[J](using q: Quotes)(using Type[J]): Expr[J] =
-        brewFromImpl(findSelf.asExprOf[AnyRef])
+    def brewImpl[J](using q: Quotes)(using Type[J])(config: Expr[JamDsl#JamConfig]): Expr[J] = {
+        brewFromImpl[J](findSelf.asExprOf[AnyRef])(config)
+    }
 
-    def brewFromImpl[J](using q: Quotes)(using Type[J])(self: Expr[AnyRef]): Expr[J] = {
+    def brewFromImpl[J](using q: Quotes)(using Type[J])(self: Expr[AnyRef])(config: Expr[JamDsl#JamConfig]): Expr[J] = {
         import q.reflect.*
         val ttr = TypeTree.of[J]
         val constructor = getConstructor(ttr, "")
         val candidates = findCandidates(self.asTerm)
         brew(ttr, self.asTerm, constructor._2, candidates, "")(
-            (ttr, prefix) => report.throwError(s"Unable to find instance for $prefix(${ttr.show})"),
+            (ttr, prefix) => report.errorAndAbort(s"Unable to find instance for $prefix(${ttr.show})"),
             createResultFromConstructor(ttr, constructor._1, _)
         ).asExprOf
     }
 
-    def brewWithImpl[J](using q: Quotes)(using Type[J])(f: Expr[?]): Expr[J] =
-        brewWithFromImpl(f)(findSelf.asExprOf[AnyRef])
+    def brewWithImpl[J](using q: Quotes)(using Type[J])(f: Expr[?])(config: Expr[JamDsl#JamConfig]): Expr[J] =
+        brewWithFromImpl(f)(findSelf.asExprOf[AnyRef])(config)
 
-    def brewWithFromImpl[J](using q: Quotes)(using Type[J])(f: Expr[?])(self: Expr[AnyRef]): Expr[J] = {
+    def brewWithFromImpl[J](using q: Quotes)(using Type[J])(f: Expr[?])(self: Expr[AnyRef])(config: Expr[JamDsl#JamConfig]): Expr[J] = {
         import q.reflect.*
         val ttr = TypeTree.of[J]
         val constructor = getFunctionArguments(f.asTerm)
         val candidates = findCandidates(self.asTerm)
         brew(ttr, self.asTerm, constructor, candidates, "")(
-            (ttr, prefix) => report.throwError(s"Unable to find instance for $prefix(${ttr.show})"),
+            (ttr, prefix) => report.errorAndAbort(s"Unable to find instance for $prefix(${ttr.show})"),
             createResultFromFunction(f.asTerm, _)
         ).asExprOf
     }
 
-    def brewRecImpl[J](using q: Quotes)(using Type[J]): Expr[J] =
-        brewFromRecImpl(findSelf.asExprOf[AnyRef])
+    def brewRecImpl[J](using q: Quotes)(using Type[J])(config: Expr[JamDsl#JamConfig]): Expr[J] =
+        brewFromRecImpl(findSelf.asExprOf[AnyRef])(config)
 
-    def brewFromRecImpl[J](using q: Quotes)(using Type[J])(self: Expr[AnyRef]): Expr[J] = {
+    def brewFromRecImpl[J](using q: Quotes)(using Type[J])(self: Expr[AnyRef])(config: Expr[JamDsl#JamConfig]): Expr[J] = {
         import q.reflect.*
         val ttr = TypeTree.of[J]
         val constructor = getConstructor(ttr, "")
         val candidates = findCandidates(self.asTerm)
+        val configR = parseConfig(config)
         brew(ttr, self.asTerm, constructor._2, candidates, "")(
             (ttr, prefix) => {
                 def rec(ttr: TypeTree, typePrefix: String): q.reflect.Term = {
+                    validateBrewRecType(ttr, configR, prefix)
                     val constructor = getConstructor(ttr, prefix)
                     brew(
                         ttr, self.asTerm, constructor._2, candidates, typePrefix)(
@@ -54,17 +59,39 @@ object JamMacro {
         ).asExprOf
     }
 
-    def brewWithRecImpl[J](using q: Quotes)(using Type[J])(f: Expr[?]): Expr[J] =
-        brewWithFromRecImpl(f)(findSelf.asExprOf[AnyRef])
+    private def parseConfig(using q: Quotes)(config: Expr[JamDsl#JamConfig]): jam.JamConfig = {
+        import q.reflect.*
+        config.asTerm.underlyingArgument match {
+            case Typed(Apply(_, List(Literal(StringConstant(brewRecRegex)))), _) =>
+                new jam.JamConfig(brewRecRegex)
+            case _ => report.errorAndAbort(
+                "Unable to eval JamConfig at compile time. " +
+                    "Provided value should be `inline def` and in `= JamConfig(...)` format"
+            )
+        }
+    }
 
-    def brewWithFromRecImpl[J](using q: Quotes)(using Type[J])(f: Expr[?])(self: Expr[AnyRef]): Expr[J] = {
+    private def validateBrewRecType(using q: Quotes)(ttr: q.reflect.TypeTree, config: jam.JamConfig, prefix: String): Unit = {
+        import q.reflect.*
+        if (!ttr.show.matches(config.brewRecRegex)) report.errorAndAbort(
+            s"Recursive brewing for instance $prefix(${ttr.show}) is prohibited from config. " +
+                s"${ttr.show} doesn't match ${config.brewRecRegex} regex."
+        )
+    }
+
+    def brewWithRecImpl[J](using q: Quotes)(using Type[J])(f: Expr[?])(config: Expr[JamDsl#JamConfig]): Expr[J] =
+        brewWithFromRecImpl(f)(findSelf.asExprOf[AnyRef])(config)
+
+    def brewWithFromRecImpl[J](using q: Quotes)(using Type[J])(f: Expr[?])(self: Expr[AnyRef])(config: Expr[JamDsl#JamConfig]): Expr[J] = {
         import q.reflect.*
         val ttr = TypeTree.of[J]
         val constructor = getFunctionArguments(f.asTerm)
         val candidates = findCandidates(self.asTerm)
+        val configR = parseConfig(config)
         brew(ttr, self.asTerm, constructor, candidates, "")(
             (ttr, prefix) => {
                 def rec(ttr: TypeTree, typePrefix: String): q.reflect.Term = {
+                    validateBrewRecType(ttr, configR, prefix)
                     val constructor = getConstructor(ttr, prefix)
                     brew(
                         ttr, self.asTerm, constructor._2, candidates, typePrefix)(
@@ -81,11 +108,11 @@ object JamMacro {
         import q.reflect.*
         def rec(s: Symbol): Option[Symbol] = s.maybeOwner match {
             case o if o.isNoSymbol => None
-            case o if o.isClassDef || o.isPackageDef => Option(o)
+            case o if o.isClassDef => Option(o)
             case o => rec(o)
         }
         rec(Symbol.spliceOwner).map(This.apply)
-            .getOrElse(report.throwError(s"Unable to access 'this'"))
+            .getOrElse(report.errorAndAbort(s"Unable to access 'this'"))
     }
 
     private def findCandidates(
@@ -125,11 +152,11 @@ object JamMacro {
                 m.returnTpt.tpe)(
                 args => m.returnTpt.tpe.asInstanceOf[AppliedType].tycon.appliedTo(args.values.toList)
             ) =:= ttr.tpe => m }
-        if (constructors.isEmpty) report.throwError(s"Unable to find public constructor for $prefix(${ttr.show})")
+        if (constructors.isEmpty) report.errorAndAbort(s"Unable to find public constructor for $prefix(${ttr.show})")
         val annotatedConstructors = constructors.filter(_.symbol.annotations.exists(_.tpe.typeSymbol.fullName == "javax.inject.Inject"))
         val primaryConstructors = if (annotatedConstructors.nonEmpty) annotatedConstructors else constructors
         if (primaryConstructors.size > 1)
-            report.throwError(s"More than one primary constructor was found for $prefix(${ttr.show})")
+            report.errorAndAbort(s"More than one primary constructor was found for $prefix(${ttr.show})")
         primaryConstructors.head.symbol -> primaryConstructors.head.termParamss.map(tp => tp.isImplicit -> tp.params)
     }
 
@@ -152,10 +179,10 @@ object JamMacro {
 
     private def getFunctionArguments(using q: Quotes)(f: q.reflect.Tree): List[(Boolean, List[q.reflect.ValDef])] = {
         import q.reflect.*
-        f match {
-            case Inlined(_, _, Lambda(args, _)) => List(false -> args)
-            case _ => report.throwError(s"Unsupported function type ${f.show}")
-        }
+        Option(f)
+            .collect { case f: Term => f.underlyingArgument }
+            .collect { case Lambda(args, _) => List(false -> args) }
+            .getOrElse(report.errorAndAbort(s"Unsupported function type ${f.show}"))
     }
 
     private def getTpeArguments(using q: Quotes)(tpe: q.reflect.TypeRepr): Option[Map[String, q.reflect.TypeRepr]] = {
@@ -183,13 +210,13 @@ object JamMacro {
             if (impl) ptpt.tpe.asType match {
                 case '[tpe] => (Expr.summon[tpe] match {
                     case Some(arg) => arg
-                    case _ => report.throwError(
+                    case _ => report.errorAndAbort(
                         s"Unable to resolve implicit instance for $prefix(${ttr.show}).${p.name}"
                     )
                 }).asTerm
             } else {
                 val parameterCandidates = candidates.filter(_._3 <:< ptpt.tpe)
-                if (parameterCandidates.size > 1) report.throwError(
+                if (parameterCandidates.size > 1) report.errorAndAbort(
                     s"More than one injection candidate was found for $prefix(${ttr.show}).${p.name}"
                 )
                 parameterCandidates.headOption.fold(

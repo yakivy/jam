@@ -16,7 +16,7 @@ class ReadmeSpec extends AnyFreeSpec {
         class QuotaChecker(val databaseAccess: DatabaseAccess)
 
         trait UserModule {
-            val singletonDatabaseAccess = jam.brewRec[DatabaseAccess]
+            val singletonDatabaseAccess = jam.brew[DatabaseAccess]
             val userStatusReader = jam.brewRec[UserStatusReader]
         }
 

@@ -1,14 +1,15 @@
-package jam
+package jam.core
 
+import jam.JamDsl
 import scala.reflect.macros.blackbox.Context
 
 object JamMacro {
-    def brewImpl[J: c.WeakTypeTag](c: Context): c.Expr[J] = {
+    def brewImpl[J: c.WeakTypeTag](c: Context)(config: c.Tree): c.Expr[J] = {
         import c.universe._
-        brewFromImpl(c)(q"this")
+        brewFromImpl(c)(q"this")(config)
     }
 
-    def brewFromImpl[J: c.WeakTypeTag](c: Context)(self: c.Tree): c.Expr[J] = {
+    def brewFromImpl[J: c.WeakTypeTag](c: Context)(self: c.Tree)(config: c.Tree): c.Expr[J] = {
         val candidates = findCandidates(c)(self)
         val tpe = implicitly[c.WeakTypeTag[J]].tpe.dealias
         brew(c)(
@@ -18,57 +19,87 @@ object JamMacro {
         )
     }
 
-    def brewWithImpl[J: c.WeakTypeTag](c: Context)(f: c.Tree): c.Tree = {
+    def brewWithImpl[J: c.WeakTypeTag](c: Context)(f: c.Tree)(config: c.Tree): c.Expr[J] = {
         import c.universe._
-        brewWithFromImpl(c)(f)(q"this")
+        brewWithFromImpl(c)(f)(q"this")(config)
     }
 
-    def brewWithFromImpl[J: c.WeakTypeTag](c: Context)(f: c.Tree)(self: c.Tree): c.Tree = {
+    def brewWithFromImpl[J: c.WeakTypeTag](c: Context)(f: c.Tree)(self: c.Tree)(config: c.Tree): c.Expr[J] = {
         val candidates = findCandidates(c)(self)
         val tpe = implicitly[c.WeakTypeTag[J]].tpe.dealias
         brew(c)(
             self, tpe, candidates, getFunctionArguments(c)(f), "")(
             (tpe, prefix) => c.abort(c.enclosingPosition, s"Unable to find instance for $prefix($tpe)"),
             createResultFromFunction(c)(f, _)
-        ).tree
+        )
     }
 
-    def brewRecImpl[J: c.WeakTypeTag](c: Context): c.Expr[J] = {
+    def brewRecImpl[J: c.WeakTypeTag](c: Context)(config: c.Tree): c.Expr[J] = {
         import c.universe._
-        brewFromRecImpl(c)(q"this")
+        brewFromRecImpl(c)(q"this")(config)
     }
 
-    def brewFromRecImpl[J: c.WeakTypeTag](c: Context)(self: c.Tree): c.Expr[J] = {
+    def brewFromRecImpl[J: c.WeakTypeTag](c: Context)(self: c.Tree)(config: c.Tree): c.Expr[J] = {
         val candidates = findCandidates(c)(self)
         val tpe = implicitly[c.WeakTypeTag[J]].tpe.dealias
+        val configR = parseConfig(c)(config)
         brew(c)(
             self, tpe, candidates, getConstructorArguments(c)(tpe, ""), "")(
             (tpe, prefix) => {
-                def rec(tpe: c.Type, prefix: String): c.Tree = brew(c)(
-                    self, tpe, candidates, getConstructorArguments(c)(tpe, prefix), prefix)(
-                    rec(_, _), createResultFromConstructor(c)(tpe, _)
-                ).tree
+                def rec(tpe: c.Type, prefix: String): c.Tree = {
+                    validateBrewRecType(c)(tpe, configR, prefix)
+                    brew(c)(
+                        self, tpe, candidates, getConstructorArguments(c)(tpe, prefix), prefix)(
+                        rec(_, _), createResultFromConstructor(c)(tpe, _)
+                    ).tree
+                }
                 rec(tpe, prefix)
             },
             createResultFromConstructor(c)(tpe, _)
         )
     }
 
-    def brewWithRecImpl[J: c.WeakTypeTag](c: Context)(f: c.Tree): c.Expr[J] = {
+    private def parseConfig(c: Context)(config: c.Tree): JamDsl#JamConfig = {
         import c.universe._
-        brewWithFromRecImpl(c)(f)(q"this")
+        config match {
+            case Typed(Apply(_, List(Literal(Constant(brewRecRegex: String)))), _) =>
+                new jam.JamConfig(brewRecRegex)
+            case _ => c.abort(
+                c.enclosingPosition,
+                "Unable to eval JamConfig at compile time. " +
+                    "Provided value should be `macro def` and in " +
+                    "`: c.Tree = c.universe.reify(new JamConfig(...)).tree` format"
+            )
+        }
     }
 
-    def brewWithFromRecImpl[J: c.WeakTypeTag](c: Context)(f: c.Tree)(self: c.Tree): c.Expr[J] = {
+    private def validateBrewRecType(c: Context)(tpe: c.Type, config: JamDsl#JamConfig, prefix: String): Unit = {
+        if (!tpe.toString.matches(config.brewRecRegex)) c.abort(
+            c.enclosingPosition,
+            s"Recursive brewing for instance $prefix($tpe) is prohibited from config. " +
+                s"${tpe.toString} doesn't match ${config.brewRecRegex} regex."
+        )
+    }
+
+    def brewWithRecImpl[J: c.WeakTypeTag](c: Context)(f: c.Tree)(config: c.Tree): c.Expr[J] = {
+        import c.universe._
+        brewWithFromRecImpl(c)(f)(q"this")(config)
+    }
+
+    def brewWithFromRecImpl[J: c.WeakTypeTag](c: Context)(f: c.Tree)(self: c.Tree)(config: c.Tree): c.Expr[J] = {
         val candidates = findCandidates(c)(self)
         val tpe = implicitly[c.WeakTypeTag[J]].tpe.dealias
+        val configR = parseConfig(c)(config)
         brew(c)(
             self, tpe, candidates, getFunctionArguments(c)(f), "")(
             (tpe, prefix) => {
-                def rec(tpe: c.Type, prefix: String): c.Tree = brew(c)(
-                    self, tpe, candidates, getConstructorArguments(c)(tpe, prefix), prefix)(
-                    rec(_, _), createResultFromConstructor(c)(tpe, _)
-                ).tree
+                def rec(tpe: c.Type, prefix: String): c.Tree = {
+                    validateBrewRecType(c)(tpe, configR, prefix)
+                    brew(c)(
+                        self, tpe, candidates, getConstructorArguments(c)(tpe, prefix), prefix)(
+                        rec(_, _), createResultFromConstructor(c)(tpe, _)
+                    ).tree
+                }
                 rec(tpe, prefix)
             },
             createResultFromFunction(c)(f, _)
@@ -85,20 +116,23 @@ object JamMacro {
         q"$f(...$args)"
     }
 
+    private def resolveTermType(c: Context)(t: c.universe.ValOrDefDef): Option[c.Type] = {
+        import c.universe._
+        Option(t.tpt.tpe)
+            .orElse(Option(t.tpt).filter(_ != EmptyTree).map(t =>
+                c.typecheck(q"$t", c.TYPEmode, silent = true, withMacrosDisabled = true).tpe
+            ))
+            .orElse(Option(t.rhs).filter(_ != EmptyTree).map(
+                c.typecheck(_, silent = true, withMacrosDisabled = true).tpe
+            ))
+    }
+
     private def findCandidates(c: Context)(self: c.Tree): List[(c.universe.TermSymbol, c.universe.Type)] = {
         import c.universe._
         val defs: Map[TermName, Type] = c.enclosingImpl.collect {
-            case DefDef(_, n, _, Nil, tpt, rhs) => (n, tpt, rhs)
-            case ValDef(_, n, tpt, rhs) => (n, tpt, rhs)
-        }.flatMap(m => Option(m._2.tpe)
-            .orElse(Option(m._2).filter(_ != EmptyTree).map(t =>
-                c.typecheck(q"$t", c.TYPEmode, silent = true, withMacrosDisabled = true).tpe
-            ))
-            .orElse(Option(m._3).filter(_ != EmptyTree).map(
-                c.typecheck(_, silent = true, withMacrosDisabled = true).tpe
-            ))
-            .map(m._1 -> _)
-        ).toMap
+            case t: DefDef if t.vparamss.isEmpty => t
+            case t: ValDef => t
+        }.flatMap(t => resolveTermType(c)(t).map(t.name -> _)).toMap
         c.typecheck(self).tpe.members
             .filter(m => !m.fullName.startsWith("java.lang.Object") && !m.fullName.startsWith("scala.Any"))
             .filter(_.isTerm).map(_.asTerm).map(s => s.getter.orElse(s).asTerm).toList.distinct

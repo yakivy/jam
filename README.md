@@ -7,15 +7,15 @@
 Jam is an incredibly simple DI Scala library.
 
 Essential differences from [macwire](https://github.com/softwaremill/macwire):
-- is simpler, faster and more predictable
+- is simpler, faster and more transparent
 - supports Scala 3, Scala JS, Scala Native
-- is able to inject arguments recursively
 - searches candidates in `this`
+- supports macro config
 
 ### Quick start
 Latest stable jam dependency:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.1.0"
+"com.github.yakivy" %% "jam-core" % "0.2.0"
 ```
 Usage example:
 ```scala
@@ -25,7 +25,7 @@ class UserFinder(databaseAccess: DatabaseAccess, securityFilter: SecurityFilter)
 class UserStatusReader(userFinder: UserFinder)
 
 trait UserModule {
-    val singletonDatabaseAccess = jam.brewRec[DatabaseAccess]
+    val singletonDatabaseAccess = jam.brew[DatabaseAccess]
     val userStatusReader = jam.brewRec[UserStatusReader]
 }
 ```
@@ -66,6 +66,27 @@ trait QuotaCheckerModule {
     val quotaChecker = jam.brewFrom[QuotaChecker](ResolvedUserModule)
 }
 ```
+### Macro configuration
+It's also possible to configure brewing behaviour with an implicit macro JamConfig instance, so here is an example if you for example want to limit recursive brewing only to classes that have "brewable" in the name:
+```
+object myjam extends jam.JamDsl {
+    //for Scala 2.x
+    //and don't forget about Scala 2 macro system requirements:
+    //- define macro in a separate compilation unit
+    //- add `scala.language.experimental.macros` import
+    //- add `org.scala-lang:scala-reflect` compile time dependency
+    def myJamConfigImpl(c: blackbox.Context): c.Tree = c.universe.reify {
+        new JamConfig(brewRecRegex = "(?i).*brewable.*")
+    }.tree
+    implicit def myJamConfig: JamConfig = macro myJamConfigImpl
+
+    //for Scala 3.x
+    implicit inline def myJamConfig: JamConfig = {
+        JamConfig(brewRecRegex = "(?i).*brewable.*")
+    }
+}
+```
+then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (WithSingleArg).a(WithEmptyArgs) is prohibited from config. WithEmptyArgs doesn't match (?i).*brewable.* regex.` compilation error. `JamConfig` is a dependent type, so all brew methods that are called from `myjam` object should automatically resolve implicit config without any imports.
 
 ### Implementation details 
 - injection candidates is being searched in `this` instance, so to provide an instance for future injection you need to make it a member of `this`. Examples:
@@ -100,6 +121,9 @@ trait A {
 - jam is intended to be minimal, features like scopes or object lifecycles should be implemented manually
 
 ### Changelog
+
+#### 0.2.0: :christmas_tree:
+- add brewing configuration: `JamConfig`
 
 #### 0.1.0:
 - fix import ambiguity: `jam.tree.brew` was renamed to `jam.brewRec`

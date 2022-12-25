@@ -1,131 +1,98 @@
 package jam
 
-import javax.inject.Inject
-import org.scalatest.freespec.AnyFreeSpec
+import jam.CustomSpec._
 
-class JamSpec extends AnyFreeSpec {
+class JamSpec extends CustomSpec {
     "Jam" - {
-        trait Marked
-        class WithEmptyArgs
-        class WithSingleArg(val a: WithEmptyArgs)
-        class WithTwoArgs(val a: WithEmptyArgs, val b: WithSingleArg)
-        class WithChild
-        class WithChildChild extends WithChild
-        class WithArgWithChild(val a: WithChild)
-        class WithImplicitArgList(val a: WithEmptyArgs)(implicit val b: WithSingleArg)
-        class WithImplicitArg(val a: WithEmptyArgs, implicit val b: WithSingleArg)
-        object ParentObject {
-            class InObject(val a: WithEmptyArgs)
-        }
-        class WithCustomConstructors(val a: WithEmptyArgs) {
-            def this(a: WithSingleArg) = this(a.a)
-            def this(a: WithSingleArg, b: WithEmptyArgs) = this(b)
-        }
-        object WithCustomConstructors {
-            def apply(a: WithEmptyArgs): WithCustomConstructors = new WithCustomConstructors(a)
-            def apply(a: WithSingleArg): WithCustomConstructors = new WithCustomConstructors(a)
-            def apply(a: WithSingleArg, b: WithEmptyArgs): WithCustomConstructors = new WithCustomConstructors(
-                a, b)
-            def custom(a: WithEmptyArgs, b: WithEmptyArgs): WithCustomConstructors = apply(a)
-        }
-        class WithGenericAndPlainArgs[A](val a: A, val b: WithSingleArg)
-        class WithStringArg(val a: String)
-        class WithAnnotatedConstructor(val a: Int) {
-            @Inject()
-            def this(a: String) = this(a.length)
-            def this(a: Double) = this(a.toInt)
-        }
-
-        "should brew" - {
-
-            "objects for simple module" in {
+        "should brew objects" - {
+            "in simple module" in {
                 new {
-                    val a = brew[WithEmptyArgs]
-                    val b = brew[WithSingleArg]
-                    val c = brew[WithTwoArgs]
-                    val d = brew[ParentObject.InObject]
-                    val e = brew[WithGenericAndPlainArgs[WithSingleArg]]
+                    val a = jam.brew[WithEmptyArgs]
+                    val b = jam.brew[WithSingleArg]
+                    val c = jam.brew[WithTwoArgs]
+                    val d = jam.brew[ParentObject.InObject]
+                    val e = jam.brew[WithGenericAndPlainArgs[WithSingleArg]]
                     assert(c.a.eq(a) && c.b.eq(b) && b.a.eq(a))
                     assert(d.a.eq(a))
                     assert(e.a.eq(b) && e.b.eq(b))
                 }
             }
 
-            "objects for simple module from argument" in {
+            "in simple module from argument" in {
                 new {
                     object module {
-                        val a = brew[WithEmptyArgs]
+                        val a = jam.brew[WithEmptyArgs]
                     }
-                    val b = brewFrom[WithSingleArg](module)
+                    val b = jam.brewFrom[WithSingleArg](module)
                     assert(b.a.eq(module.a))
                 }
             }
 
-            "objects for generic module from argument" in {
+            "in generic module from argument" in {
                 new {
                     trait HasA[A] {
                         def a: A
                     }
                     object module extends HasA[WithEmptyArgs] {
-                        val a: WithEmptyArgs = brew[WithEmptyArgs]
+                        val a: WithEmptyArgs = jam.brew[WithEmptyArgs]
                     }
-                    val b = brewFrom[WithSingleArg](module)
+                    val b = jam.brewFrom[WithSingleArg](module)
                     assert(b.a.eq(module.a))
                 }
             }
 
-            "objects for module with execution blocks" in {
+            "in module with execution blocks" in {
                 new {
                     val a1 = new WithEmptyArgs
                     val b = {
                         val a2 = new WithEmptyArgs
-                        val b: WithSingleArg = brewRec[WithSingleArg]
+                        val b: WithSingleArg = jam.brewRec[WithSingleArg]
                         b
                     }
                     assert(b.a.eq(a1))
                 }
             }
 
-            "objects for composite module" in {
+            "in composite module" in {
                 trait Module {
                     def a: WithEmptyArgs
-                    val b = brew[WithSingleArg]
+                    val b = jam.brew[WithSingleArg]
                 }
                 new Module {
                     def a = new WithEmptyArgs
-                    val c = brew[WithTwoArgs]
+                    val c = jam.brew[WithTwoArgs]
                     assert(!c.a.eq(b.a) && c.b.eq(b))
                 }
             }
 
-            "objects for module with string" in {
+            "in module with string" in {
                 new {
                     val a = "string"
-                    val b = brew[WithStringArg]
+                    val b = jam.brew[WithStringArg]
                     assert(b.a.eq(a))
                 }
             }
 
-            "objects for classes with an annotated primary constructor" in {
+            "with an annotated primary constructor" in {
                 new {
                     val a = "string"
-                    val b = brew[WithAnnotatedConstructor]
+                    val b = jam.brew[WithAnnotatedConstructor]
                     assert(b.a == a.length)
                 }
             }
 
-            "objects with custom constructors" in {
+            "with custom constructors" in {
                 new {
                     val a = new WithEmptyArgs
                     val b = new WithSingleArg(a)
 
-                    val c = brewWith(new WithCustomConstructors(_: WithEmptyArgs))
-                    val d = brewWith(new WithCustomConstructors(_: WithSingleArg))
-                    val e = brewWith(new WithCustomConstructors(_: WithSingleArg, _: WithEmptyArgs))
-                    val f = brewWith(WithCustomConstructors.apply(_: WithEmptyArgs))
-                    val g = brewWith(WithCustomConstructors.apply(_: WithSingleArg))
-                    val h = brewWith(WithCustomConstructors.apply(_: WithSingleArg, _: WithEmptyArgs))
-                    val i = brewWith(WithCustomConstructors.custom _)
+                    val c = jam.brewWith(new WithCustomConstructors(_: WithEmptyArgs))
+                    val d = jam.brewWith(new WithCustomConstructors(_: WithSingleArg))
+                    val e = jam.brewWith(new WithCustomConstructors(_: WithSingleArg, _: WithEmptyArgs))
+                    val f = jam.brewWith(WithCustomConstructors.apply(_: WithEmptyArgs))
+                    val g = jam.brewWith(WithCustomConstructors.apply(_: WithSingleArg))
+                    val h = jam.brewWith(WithCustomConstructors.apply(_: WithSingleArg, _: WithEmptyArgs))
+                    val i = jam.brewWith(WithCustomConstructors.custom _)
 
                     assert(c.a.eq(a))
                     assert(d.a.eq(a))
@@ -137,88 +104,88 @@ class JamSpec extends AnyFreeSpec {
                 }
             }
 
-            "objects with custom constructors from argument" in {
+            "with custom constructors from argument" in {
                 new {
                     object module {
                         val a = new WithEmptyArgs
                     }
-                    val c = brewWithFrom(new WithCustomConstructors(_: WithEmptyArgs))(module)
+                    val c = jam.brewWithFrom(new WithCustomConstructors(_: WithEmptyArgs))(module)
                     assert(c.a.eq(module.a))
                 }
             }
 
-            "objects with argument with child" in {
+            "with argument with child" in {
                 new {
                     def `null`: Null = null
                     def absurd: Nothing = ???
-                    val a = brew[WithChildChild]
-                    val b = brew[WithArgWithChild]
+                    val a = jam.brew[WithChildChild]
+                    val b = jam.brew[WithArgWithChild]
                     assert(b.a.eq(a))
                 }
             }
 
-            "objects for module with implicits" in {
+            "in module with implicits" in {
                 implicit val a = new WithSingleArg(new WithEmptyArgs)
                 new {
                     val b = new WithEmptyArgs
-                    val c = brew[WithImplicitArgList]
+                    val c = jam.brew[WithImplicitArgList]
                     assert(c.b.eq(a) && c.a.eq(b))
                 }
             }
 
-            "objects for module with implicits values" in {
+            "in module with implicits values" in {
                 new {
                     val a = new WithEmptyArgs
                     val b = new WithSingleArg(a)
-                    val c = brew[WithImplicitArg]
+                    val c = jam.brew[WithImplicitArg]
                     assert(c.a.eq(a) && c.b.eq(b))
                 }
             }
 
-            "object for simple module recursivelly" in {
+            "in simple module recursively" in {
                 new {
-                    val c = brewRec[WithTwoArgs]
+                    val c = jam.brewRec[WithTwoArgs]
                     assert(!c.a.eq(c.b.a))
                 }
             }
 
-            "object trees for module with singleton" in {
+            "in module with singleton recursively" in {
                 new {
                     val a = new WithEmptyArgs
-                    val c = brewRec[WithTwoArgs]
+                    val c = jam.brewRec[WithTwoArgs]
                     assert(c.a.eq(c.b.a))
                 }
             }
 
-            "object for module with singleton from argument recursivelly" in {
+            "in module with singleton from argument recursively" in {
                 new {
                     object module {
                         val a = new WithEmptyArgs
                     }
-                    val c = brewFromRec[WithTwoArgs](module)
+                    val c = jam.brewFromRec[WithTwoArgs](module)
                     assert(c.a.eq(module.a) && c.b.a.eq(module.a))
                 }
             }
 
-            "object trees for module with prototype" in {
+            "in module with prototype recursively" in {
                 new {
                     def a = new WithEmptyArgs with Marked
-                    val c = brewRec[WithTwoArgs]
+                    val c = jam.brewRec[WithTwoArgs]
                     assert(!c.a.eq(c.b.a) && c.a.isInstanceOf[Marked] && c.b.a.isInstanceOf[Marked])
                 }
             }
 
-            "object with custom constructors recursivelly" in {
+            "with custom constructors recursively" in {
                 new {
                     val a = new WithEmptyArgs
 
-                    val c = brewWithRec(new WithCustomConstructors(_: WithEmptyArgs))
-                    val d = brewWithRec(new WithCustomConstructors(_: WithSingleArg))
-                    val e = brewWithRec(new WithCustomConstructors(_: WithSingleArg, _: WithEmptyArgs))
-                    val f = brewWithRec(WithCustomConstructors.apply(_: WithEmptyArgs))
-                    val g = brewWithRec(WithCustomConstructors.apply(_: WithSingleArg))
-                    val h = brewWithRec(WithCustomConstructors.apply(_: WithSingleArg, _: WithEmptyArgs))
-                    val i = brewWithRec(WithCustomConstructors.custom _)
+                    val c = jam.brewWithRec(new WithCustomConstructors(_: WithEmptyArgs))
+                    val d = jam.brewWithRec(new WithCustomConstructors(_: WithSingleArg))
+                    val e = jam.brewWithRec(new WithCustomConstructors(_: WithSingleArg, _: WithEmptyArgs))
+                    val f = jam.brewWithRec(WithCustomConstructors.apply(_: WithEmptyArgs))
+                    val g = jam.brewWithRec(WithCustomConstructors.apply(_: WithSingleArg))
+                    val h = jam.brewWithRec(WithCustomConstructors.apply(_: WithSingleArg, _: WithEmptyArgs))
+                    val i = jam.brewWithRec(WithCustomConstructors.custom _)
 
                     assert(c.a.eq(a))
                     assert(d.a.eq(a))
@@ -230,44 +197,57 @@ class JamSpec extends AnyFreeSpec {
                 }
             }
 
-            "object with custom constructors from argument recursivelly" in {
+            "with custom constructors from argument recursively" in {
                 new {
                     object module {
                         val a = new WithEmptyArgs
                     }
-                    val c = brewWithFromRec(new WithCustomConstructors(_: WithEmptyArgs))(module)
+                    val c = jam.brewWithFromRec(new WithCustomConstructors(_: WithEmptyArgs))(module)
                     assert(c.a.eq(module.a))
                 }
             }
 
-            "object trees for module with prototype that has empty param lists" in {
+            "in module with prototype that has empty param lists recursively" in {
                 new {
                     def a()()()()()() = new WithEmptyArgs
-                    val c = brewRec[WithTwoArgs]
+                    val c = jam.brewRec[WithTwoArgs]
                     assert(!c.a.eq(c.b.a))
                 }
             }
         }
 
-        "shouldn't brew" - {
-            "objects with unresolved arguments" in {
+        "shouldn't brew objects" - {
+            "with unresolved arguments" in {
                 new {
-                    //brew[WithSingleArg]
+                    assertCompilationErrorMessage(
+                        assertCompiles("""jam.brew[WithSingleArg]"""),
+                        "Unable to find instance for (jam.CustomSpec.WithSingleArg).a(jam.CustomSpec.WithEmptyArgs)",
+                    )
                 }
             }
-            "objects with custom constructors and unresolved arguments" in {
+            "with custom constructors and unresolved arguments" in {
                 new {
-                    //brewWith(WithCustomConstructors.apply(_: WithSingleArg))
+                    assertCompilationErrorMessage(
+                        assertCompiles("""jam.brewWith(WithCustomConstructors.apply(_: WithSingleArg))"""),
+                        "Unable to find instance for (jam.CustomSpec.WithCustomConstructors).x$1(jam.CustomSpec.WithSingleArg)",
+                        "Unable to find instance for (jam.CustomSpec.WithCustomConstructors)._$19(jam.CustomSpec.WithSingleArg)",
+                    )
                 }
             }
-            "objects with ambiguous constructor and unresolved arguments" in {
+            "with ambiguous constructor and unresolved arguments" in {
                 new {
-                    //brew[WithCustomConstructors]
+                    assertCompilationErrorMessage(
+                        assertCompiles("""jam.brew[WithCustomConstructors]"""),
+                        "More than one primary constructor was found for (jam.CustomSpec.WithCustomConstructors)",
+                    )
                 }
             }
-            "object trees with ambiguous constructor and unresolved arguments" in {
+            "with ambiguous constructor and unresolved arguments recursively" in {
                 new {
-                    //brewRec[WithCustomConstructors]
+                    assertCompilationErrorMessage(
+                        assertCompiles("""jam.brewRec[WithCustomConstructors]"""),
+                        "More than one primary constructor was found for (jam.CustomSpec.WithCustomConstructors)",
+                    )
                 }
             }
         }
