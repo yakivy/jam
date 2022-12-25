@@ -44,12 +44,12 @@ trait UserModule {
 ### Brew types
 - `jam.brew` - injects constructor arguments if they are provided in `this`, otherwise throws an error
 - `jam.brewRec` - injects constructor arguments if they are provided in `this` or recursively brews them
-- `jam.brewWith` - injects lambda arguments if they are provided in `this`, otherwise throws an error, especially useful when constructor cannot be resolved automatically:
+- `jam.brewWith` - injects lambda arguments if they are provided in `this`, otherwise throws an error, especially useful when the constructor cannot be resolved automatically:
 ```scala
 class PasswordValidator(databaseAccess: DatabaseAccess, salt: String)
 object PasswordValidator {
     def create(databaseAccess: DatabaseAccess): PasswordValidator =
-        new PasswordValidator(atabaseAccess, "salt")
+        new PasswordValidator(databaseAccess, "salt")
 }
 
 trait PasswordValidatorModule extends UserModule {
@@ -89,7 +89,7 @@ object myjam extends jam.JamDsl {
 then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (WithSingleArg).a(WithEmptyArgs) is prohibited from config. WithEmptyArgs doesn't match (?i).*brewable.* regex.` compilation error. `JamConfig` is a dependent type, so all brew methods that are called from `myjam` object should automatically resolve implicit config without any imports.
 
 ### Implementation details 
-- injection candidates is being searched in `this` instance, so to provide an instance for future injection you need to make it a member of `this`. Examples:
+- injection candidates are being searched in `this` instance, so to provide an instance for future injection, you need to make it a member of `this`. Examples:
 ```scala
 trait A {
     val a = new A
@@ -116,9 +116,9 @@ trait A {
     }
 }
 ```
-- `val` member works like singleton provider (instance will be reused for all injections in `this` score), `def` member works like prototype provider (one method call per each injection)
-- library injects only non implicit constructor arguments, implicits will be resolved by compiler
-- jam is intended to be minimal, features like scopes or object lifecycles should be implemented manually
+- `val` member works like a singleton provider (instance will be reused for all injections in `this` score), `def` member works like a prototype provider (one method call per each injection)
+- library injects only non-implicit constructor arguments; implicits will be resolved by the compiler
+- jam is intended to be minimal; features like scopes or object lifecycles should be implemented manually
 
 ### Changelog
 
