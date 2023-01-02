@@ -68,7 +68,7 @@ trait QuotaCheckerModule {
 ```
 ### Macro configuration
 It's also possible to configure brewing behaviour with an implicit macro JamConfig instance, so here is an example if you for example want to limit recursive brewing only to classes that have "brewable" in the name:
-```
+```scala
 object myjam extends jam.JamDsl {
     //for Scala 2.x
     //and don't forget about Scala 2 macro system requirements:
@@ -82,7 +82,7 @@ object myjam extends jam.JamDsl {
 
     //for Scala 3.x
     implicit inline def myJamConfig: JamConfig = {
-        JamConfig(brewRecRegex = "(?i).*brewable.*")
+        new JamConfig(brewRecRegex = "(?i).*brewable.*")
     }
 }
 ```
