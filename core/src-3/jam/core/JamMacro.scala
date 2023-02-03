@@ -120,18 +120,22 @@ object JamMacro {
     ): List[(q.reflect.Symbol, List[List[Nothing]], q.reflect.TypeRepr)] = {
         import q.reflect.*
         val tpeArgs = getTpeArguments(self.tpe)
-        (self.tpe.typeSymbol.memberMethods ::: self.tpe.typeSymbol.memberFields)
-            .filter(m => !m.fullName.startsWith("java.lang.Object") && !m.fullName.startsWith("scala.Any"))
-            .map(_.tree).collect {
+        (self.tpe.typeSymbol.methodMembers ::: self.tpe.typeSymbol.fieldMembers)
+            .view
+            .filter(m => !m.fullName.startsWith("java.lang.Object.") && !m.fullName.startsWith("scala.Any."))
+            .filter(!_.isClassConstructor)
+            .map(_.tree)
+            .collect {
                 case m: ValDef => (
-                    m.symbol, Nil, resolveTpeRef(m.rhs.map(_.tpe).getOrElse(m.tpt.tpe))(tpeArgs)
+                    m.symbol, Nil, resolveTpeRef(m.tpt.tpe)(tpeArgs)
                 )
                 case m: DefDef if m.termParamss.flatMap(_.params).isEmpty => (
                     m.symbol, m.termParamss.map(_ => Nil),
-                    resolveTpeRef(m.rhs.map(_.tpe).getOrElse(m.returnTpt.tpe))(tpeArgs)
+                    resolveTpeRef(m.returnTpt.tpe)(tpeArgs)
                 )
             }
             .filter(m => !(m._3 =:= TypeRepr.of[Nothing]) && !(m._3 =:= TypeRepr.of[Null]))
+            .toList
     }
 
     private def resolveTpeRef(
@@ -217,7 +221,8 @@ object JamMacro {
             } else {
                 val parameterCandidates = candidates.filter(_._3 <:< ptpt.tpe)
                 if (parameterCandidates.size > 1) report.errorAndAbort(
-                    s"More than one injection candidate was found for $prefix(${ttr.show}).${p.name}"
+                    s"More than one injection candidate was found for $prefix(${ttr.show}).${p.name}: " +
+                        s"${parameterCandidates.map(_._1.fullName).sorted}"
                 )
                 parameterCandidates.headOption.fold(
                     resolveVacancy(ptpt, s"$prefix(${ttr.show}).${p.name}"))(

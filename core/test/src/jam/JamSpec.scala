@@ -250,6 +250,19 @@ class JamSpec extends CustomSpec {
                     )
                 }
             }
+            "with ambiguous injection candidate" in {
+                new {
+                    val a = brew[WithEmptyArgs]
+                    val b = brew[WithEmptyArgs]
+                    assertCompilationErrorMessage(
+                        assertCompiles("""jam.brewRec[WithSingleArg]"""),
+                        "More than one injection candidate was found for (jam.CustomSpec.WithSingleArg).a: " +
+                            "List(jam.JamSpec.$anon.a, jam.JamSpec.$anon.b)",
+                        "More than one injection candidate was found for (jam.CustomSpec.WithSingleArg).a: " +
+                            "List(jam.JamSpec._$$anon.a, jam.JamSpec._$$anon.b)",
+                    )
+                }
+            }
         }
     }
 }

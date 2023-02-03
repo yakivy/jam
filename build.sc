@@ -5,7 +5,7 @@ import mill.scalanativelib._
 import mill.scalalib.publish._
 
 object versions {
-    val publish = "0.2.0"
+    val publish = "0.2.1"
 
     val scala212 = "2.12.17"
     val scala213 = "2.13.10"
@@ -35,6 +35,12 @@ object core extends Module {
                 if (crossScalaVersion == versions.scala3) Agg.empty[Dep]
                 else Agg(ivy"org.scala-lang:scala-reflect:${scalaVersion()}")
             }
+        }
+        override def scalacOptions = T {
+            super.scalacOptions() ++ List(
+                "-deprecation",
+                "-unchecked",
+            )
         }
         override def millSourcePath = super.millSourcePath / os.up
     }

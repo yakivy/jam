@@ -15,7 +15,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 ### Quick start
 Latest stable jam dependency:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.2.0"
+"com.github.yakivy" %% "jam-core" % "0.2.1"
 ```
 Usage example:
 ```scala
@@ -121,6 +121,11 @@ trait A {
 - jam is intended to be minimal; features like scopes or object lifecycles should be implemented manually
 
 ### Changelog
+
+#### 0.2.1:
+- add member names for ambiguous candidates compilation error
+- optimize compilation time for Scala 2.x
+- throw compilation error if member type cannot be resolved
 
 #### 0.2.0: :christmas_tree:
 - add brewing configuration: `JamConfig`

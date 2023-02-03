@@ -1,6 +1,7 @@
 package jam.core
 
 import jam.JamDsl
+import scala.reflect.macros.TypecheckException
 import scala.reflect.macros.blackbox.Context
 
 object JamMacro {
@@ -116,28 +117,51 @@ object JamMacro {
         q"$f(...$args)"
     }
 
+    private def validTpe(c: Context)(tpe: c.Type): Boolean = {
+        import c.universe._
+        tpe != null &&
+            tpe != NoType &&
+            tpe.typeSymbol != NoSymbol &&
+            tpe.typeSymbol.name != termNames.ERROR
+    }
+
     private def resolveTermType(c: Context)(t: c.universe.ValOrDefDef): Option[c.Type] = {
         import c.universe._
-        Option(t.tpt.tpe)
-            .orElse(Option(t.tpt).filter(_ != EmptyTree).map(t =>
-                c.typecheck(q"$t", c.TYPEmode, silent = true, withMacrosDisabled = true).tpe
-            ))
-            .orElse(Option(t.rhs).filter(_ != EmptyTree).map(
-                c.typecheck(_, silent = true, withMacrosDisabled = true).tpe
-            ))
+        Option(t.tpt.tpe).filter(validTpe(c))
+            .orElse(Option(t.tpt).map(t => c.typecheck(q"$t", c.TYPEmode, silent = true).tpe).filter(validTpe(c)))
+            .orElse(Option(t.rhs.tpe).filter(validTpe(c)))
+            .orElse(Option(t.rhs).map(t => c.typecheck(t, silent = true, withMacrosDisabled = true).tpe).filter(validTpe(c)))
     }
 
     private def findCandidates(c: Context)(self: c.Tree): List[(c.universe.TermSymbol, c.universe.Type)] = {
         import c.universe._
         val defs: Map[TermName, Type] = c.enclosingImpl.collect {
-            case t: DefDef if t.vparamss.isEmpty => t
+            case t: DefDef if t.tparams.isEmpty && t.vparamss.flatten.isEmpty => t
             case t: ValDef => t
         }.flatMap(t => resolveTermType(c)(t).map(t.name -> _)).toMap
-        c.typecheck(self).tpe.members
-            .filter(m => !m.fullName.startsWith("java.lang.Object") && !m.fullName.startsWith("scala.Any"))
-            .filter(_.isTerm).map(_.asTerm).map(s => s.getter.orElse(s).asTerm).toList.distinct
-            .map(m => m -> defs.getOrElse(m.name, m.typeSignature))
+        val selfType = c.typecheck(self).tpe
+        selfType
+            .members
+            .view
+            .filter(m => !m.fullName.startsWith("java.lang.Object.") && !m.fullName.startsWith("scala.Any."))
+            //.asMethod resolves signature therefore asks to provide explicit types for brewed members
+            .filter(m => !m.isConstructor/* && (!m.isMethod || m.asMethod.paramLists.flatten.isEmpty)*/)
+            .filter(_.isTerm).map(_.asTerm)
+            .map(s => s.getter.orElse(s).asTerm)
+            .toList.distinct.view
+            .flatMap(m => {
+                val typeSignature = defs.get(m.name).orElse(Option(m.typeSignatureIn(selfType)).filter(validTpe(c)))
+                if(typeSignature.isEmpty && (!m.isMethod || m.asMethod.paramLists.flatten.isEmpty)) c.abort(
+                    c.enclosingPosition,
+                    s"Unable to resolve the type for ${m.fullName}, " +
+                        s"try to fix remain compilation errors or provide type explicitly"
+                )
+                typeSignature.map(m -> _)
+            }
+
+            )
             .filter(m => !(m._2 =:= typeOf[Nothing]) && !(m._2 =:= typeOf[Null]))
+            .toList
     }
 
     private def getConstructorArguments(c: Context)(tpe: c.Type, prefix: String): List[List[c.Symbol]] = {
@@ -162,6 +186,18 @@ object JamMacro {
         }
     }
 
+    def inferImplicit[A: c.universe.Liftable](c: Context)(tpe: A): Option[c.Tree] = {
+        import c.universe._
+        try c.typecheck(q"""_root_.scala.Predef.implicitly[$tpe]""") match {
+            case EmptyTree => None
+            case tree => Option(tree)
+        }
+        catch {
+            case e: TypecheckException if e.msg.contains("could not find implicit value for") => None
+            case e: TypecheckException => c.abort(c.enclosingPosition, e.msg)
+        }
+    }
+
     private def brew[J](
         c: Context)(
         self: c.Tree,
@@ -176,16 +212,21 @@ object JamMacro {
         val resolvedArguments = arguments.map(l => l.headOption.exists(_.isImplicit) -> l).map { case (impl, l) => l.map { p =>
             val ptype = p.typeSignature.substituteTypes(tpe.typeSymbol.asClass.typeParams, tpe.typeArgs)
             if (impl) {
-                q"""def implicitlyWithMessage[A](implicit @_root_.scala.annotation.implicitNotFound(${
-                    s"Unable to resolve implicit instance for $prefix($tpe).${p.name}"
-                }) value: A): A = value
-               implicitlyWithMessage[${p.typeSignature}]"""
+                inferImplicit(c)(tq"${p.typeSignature}").getOrElse(
+                    c.abort(
+                        c.enclosingPosition,
+                        s"Unable to resolve implicit instance for $prefix($tpe).${p.name}"
+                    )
+                )
             } else {
                 val parameterCandidates = candidates.filter { m =>
                     m._2.finalResultType <:< ptype && (!m._1.isMethod || m._1.asMethod.paramLists.flatten.isEmpty)
                 }
-                if (parameterCandidates.size > 1)
-                    c.abort(c.enclosingPosition, s"More than one injection candidate was found for $prefix($tpe).${p.name}")
+                if (parameterCandidates.size > 1) c.abort(
+                    c.enclosingPosition,
+                    s"More than one injection candidate was found for $prefix($tpe).${p.name}: " +
+                        s"${parameterCandidates.map(_._1.fullName).sorted}"
+                )
                 parameterCandidates.headOption.fold(
                     resolveVacancy(ptype, s"$prefix($tpe).${p.name}"))(
                     m => q"$self.${m._1.name}"
