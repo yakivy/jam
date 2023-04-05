@@ -1,11 +1,12 @@
-import jam.core.JamCoreDsl
+package jam
 
-package jam {
-    //emulation of package object as it was deprecated
-    private object internal extends JamCoreDsl {
+import jam.cats.core.JamCatsDsl
+
+package object cats {
+    object internal extends JamCatsDsl {
         implicit inline def defaultJamConfig: this.JamConfig =
             new this.JamConfig(brewRecRegex = ".*")
     }
-
+    
     export internal._
 }

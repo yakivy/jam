@@ -1,8 +1,8 @@
 package custom1
 
+import custom2.myjam
 import jam.CustomSpec
 import jam.CustomSpec._
-import custom2.myjam
 
 class MyJamSpec extends CustomSpec {
     "Jam used in a different package" - {
@@ -25,15 +25,24 @@ class MyJamSpec extends CustomSpec {
                     val c = myjam.brew[WithTwoArgs]
                     val d = myjam.brew[ParentObject.InObject]
                     val e = myjam.brew[WithGenericAndPlainArgs[WithSingleArg]]
+                    val f = myjam.brew[WithTwoArgLists]
                     assert(c.a.eq(a) && c.b.eq(b) && b.a.eq(a))
                     assert(d.a.eq(a))
                     assert(e.a.eq(b) && e.b.eq(b))
+                    assert(f.a.eq(a) && f.b.eq(b) && f.c.eq(c))
                 }
             }
             "in simple module recursively" in {
                 new {
-                    val c = jam.brewRec[WithSingleBrewableArg]
+                    val c = myjam.brewRec[WithSingleBrewableArg]
                     assert(c.a != null)
+                }
+            }
+            "in simple module in context" in {
+                new {
+                    val a = Option(myjam.brew[WithBrewablePattern])
+                    val c = myjam.brewRecF[Option][WithSingleBrewableArg]
+                    assert(c.get.a.eq(a.get))
                 }
             }
         }

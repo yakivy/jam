@@ -3,19 +3,30 @@
 [![Sonatype Nexus (Snapshots)](https://img.shields.io/nexus/s/https/oss.sonatype.org/com.github.yakivy/jam-core_2.13.svg)](https://oss.sonatype.org/content/repositories/snapshots/com/github/yakivy/jam-core_2.13/)
 [![Build Status](https://travis-ci.com/yakivy/jam.svg?branch=master)](https://travis-ci.com/yakivy/jam)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<a href="https://typelevel.org/cats/"><img src="https://typelevel.org/cats/img/cats-badge.svg" height="40px" align="right" alt="Cats friendly" /></a>
 
 Jam is an incredibly simple DI Scala library.
 
 Essential differences from [macwire](https://github.com/softwaremill/macwire):
 - is simpler, faster and more transparent
+- searches candidates only in `this`
 - supports Scala 3, Scala JS, Scala Native
-- searches candidates in `this`
-- supports macro config
+- supports macro configuration
+
+### Table of contents
+1. [Quick start](#quick-start)
+2. [Brew types](#brew-types)
+3. [Implementation details](#implementation-details)
+4. [Cats integration](#cats-integration)
+5. [Macro configuration](#macro-configuration)
+6. [Changelog](#changelog)
 
 ### Quick start
 Latest stable jam dependency:
 ```scala
-"com.github.yakivy" %% "jam-core" % "0.2.1"
+libraryDependencies += Seq(
+    "com.github.yakivy" %%% "jam-core" % "0.3.0",
+)
 ```
 Usage example:
 ```scala
@@ -36,11 +47,12 @@ trait UserModule {
     val userStatusReader = new UserStatusReader(
         new UserFinder(
             singletonDatabaseAccess,
-            new SecurityFilter(singletonDatabaseAccess)
+            new SecurityFilter(singletonDatabaseAccess),
         )
     )
 }
 ```
+
 ### Brew types
 - `jam.brew` - injects constructor arguments if they are provided in `this`, otherwise throws an error
 - `jam.brewRec` - injects constructor arguments if they are provided in `this` or recursively brews them
@@ -66,29 +78,8 @@ trait QuotaCheckerModule {
     val quotaChecker = jam.brewFrom[QuotaChecker](ResolvedUserModule)
 }
 ```
-### Macro configuration
-It's also possible to configure brewing behaviour with an implicit macro JamConfig instance, so here is an example if you for example want to limit recursive brewing only to classes that have "brewable" in the name:
-```scala
-object myjam extends jam.JamDsl {
-    //for Scala 2.x
-    //and don't forget about Scala 2 macro system requirements:
-    //- define macro in a separate compilation unit
-    //- add `scala.language.experimental.macros` import
-    //- add `org.scala-lang:scala-reflect` compile time dependency
-    def myJamConfigImpl(c: blackbox.Context): c.Tree = c.universe.reify {
-        new JamConfig(brewRecRegex = "(?i).*brewable.*")
-    }.tree
-    implicit def myJamConfig: JamConfig = macro myJamConfigImpl
 
-    //for Scala 3.x
-    implicit inline def myJamConfig: JamConfig = {
-        new JamConfig(brewRecRegex = "(?i).*brewable.*")
-    }
-}
-```
-then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (WithSingleArg).a(WithEmptyArgs) is prohibited from config. WithEmptyArgs doesn't match (?i).*brewable.* regex.` compilation error. `JamConfig` is a dependent type, so all brew methods that are called from `myjam` object should automatically resolve implicit config without any imports.
-
-### Implementation details 
+### Implementation details
 - injection candidates are being searched in `this` instance, so to provide an instance for future injection, you need to make it a member of `this`. Examples:
 ```scala
 trait A {
@@ -120,7 +111,60 @@ trait A {
 - library injects only non-implicit constructor arguments; implicits will be resolved by the compiler
 - jam is intended to be minimal; features like scopes or object lifecycles should be implemented manually
 
+### Cats integration
+`jam-cats` module provides `brewF` analogies for all `brew` methods using `cats.Monad` typeclass, that allow to brew objects in `F[_]` context, for example: 
+```scala
+trait UserModule {
+    val databaseAccess = jam.brew[DatabaseAccess]
+    val maybeSecurityFilter = Option(jam.brew[SecurityFilter])
+    val maybeUserStatusReader = jam.cats.brewRecF[Option][UserStatusReader]
+}
+```
+translates to something similar to:
+```scala
+trait UserModule {
+    val databaseAccess = new DatabaseAccess()
+    val maybeSecurityFilter = Option(new SecurityFilter(databaseAccess))
+    val maybeUserStatusReader = (
+        Monad[Option].pure(databaseAccess),
+        maybeSecurityFilter,
+    ).mapN((databaseAccess, securityFilter) => new UserStatusReader(
+        new UserFinder(
+            databaseAccess,
+            securityFilter,
+        )
+    ))
+}
+```
+
+### Macro configuration
+It's also possible to configure brewing behaviour with an implicit macro JamConfig instance, so here is an example if you for example want to limit recursive brewing only to classes that have "brewable" in the name:
+```scala
+object myjam extends jam.core.JamCoreDsl with jam.cats.core.JamCatsDsl {
+    //for Scala 2.x
+    //and don't forget about Scala 2 macro system requirements:
+    //- define macro in a separate compilation unit
+    //- add `scala.language.experimental.macros` import
+    //- add `org.scala-lang:scala-reflect` compile time dependency
+    def myJamConfigImpl(c: blackbox.Context): c.Tree = c.universe.reify {
+        new JamConfig(brewRecRegex = "(?i).*brewable.*")
+    }.tree
+    implicit def myJamConfig: JamConfig = macro myJamConfigImpl
+
+    //for Scala 3.x
+    implicit inline def myJamConfig: JamConfig = {
+        new JamConfig(brewRecRegex = "(?i).*brewable.*")
+    }
+}
+```
+then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (WithSingleArg).a(WithEmptyArgs) is prohibited from config. WithEmptyArgs doesn't match (?i).*brewable.* regex.` compilation error. `JamConfig` is a dependent type, so any brew methods that is called from `myjam` object should automatically resolve implicit config without additional imports.
+
 ### Changelog
+
+#### 0.3.0
+- add `jam.cats` module
+- rename `brewWithFrom` to `brewFromWith` and swap arguments
+- a couple of minor fixes
 
 #### 0.2.1:
 - add member names for ambiguous candidates compilation error

@@ -2,7 +2,7 @@ package jam
 
 import jam.CustomSpec._
 
-class JamSpec extends CustomSpec {
+class CoreSpec extends CustomSpec {
     "Jam" - {
         "should brew objects" - {
             "in simple module" in {
@@ -12,9 +12,21 @@ class JamSpec extends CustomSpec {
                     val c = jam.brew[WithTwoArgs]
                     val d = jam.brew[ParentObject.InObject]
                     val e = jam.brew[WithGenericAndPlainArgs[WithSingleArg]]
+                    val f = jam.brew[WithTwoArgLists]
                     assert(c.a.eq(a) && c.b.eq(b) && b.a.eq(a))
                     assert(d.a.eq(a))
                     assert(e.a.eq(b) && e.b.eq(b))
+                    assert(f.a.eq(a) && f.b.eq(b) && f.c.eq(c))
+                }
+            }
+
+            "in simple module with type alias" in {
+                new {
+                    type A = WithEmptyArgs
+                    val a = jam.brew[A]
+                    val b = jam.brew[WithSingleArg]
+
+                    assert(b.a.eq(a))
                 }
             }
 
@@ -104,12 +116,22 @@ class JamSpec extends CustomSpec {
                 }
             }
 
+            "with private constructor" in {
+                new {
+                    val a = new WithEmptyArgs
+
+                    val c = jam.brew[WithPrivateConstructor]
+
+                    assert(c.a.eq(a))
+                }
+            }
+
             "with custom constructors from argument" in {
                 new {
                     object module {
                         val a = new WithEmptyArgs
                     }
-                    val c = jam.brewWithFrom(new WithCustomConstructors(_: WithEmptyArgs))(module)
+                    val c = jam.brewFromWith(module, new WithCustomConstructors(_: WithEmptyArgs))
                     assert(c.a.eq(module.a))
                 }
             }
@@ -144,8 +166,8 @@ class JamSpec extends CustomSpec {
 
             "in simple module recursively" in {
                 new {
-                    val c = jam.brewRec[WithTwoArgs]
-                    assert(!c.a.eq(c.b.a))
+                    val c = jam.brewRec[WithTwoArgLists]
+                    assert(!c.a.eq(c.b.a) && !c.a.eq(c.c.a) && !c.b.eq(c.c.b))
                 }
             }
 
@@ -202,7 +224,7 @@ class JamSpec extends CustomSpec {
                     object module {
                         val a = new WithEmptyArgs
                     }
-                    val c = jam.brewWithFromRec(new WithCustomConstructors(_: WithEmptyArgs))(module)
+                    val c = jam.brewFromWithRec(module, new WithCustomConstructors(_: WithEmptyArgs))
                     assert(c.a.eq(module.a))
                 }
             }
@@ -256,10 +278,24 @@ class JamSpec extends CustomSpec {
                     val b = brew[WithEmptyArgs]
                     assertCompilationErrorMessage(
                         assertCompiles("""jam.brewRec[WithSingleArg]"""),
-                        "More than one injection candidate was found for (jam.CustomSpec.WithSingleArg).a: " +
-                            "List(jam.JamSpec.$anon.a, jam.JamSpec.$anon.b)",
-                        "More than one injection candidate was found for (jam.CustomSpec.WithSingleArg).a: " +
-                            "List(jam.JamSpec._$$anon.a, jam.JamSpec._$$anon.b)",
+                        "More than one injection candidate was found for " +
+                            "(jam.CustomSpec.WithSingleArg).a(jam.CustomSpec.WithEmptyArgs): " +
+                            "jam.CoreSpec.$anon.a(jam.CustomSpec.WithEmptyArgs), " +
+                            "jam.CoreSpec.$anon.b(jam.CustomSpec.WithEmptyArgs)",
+                        "More than one injection candidate was found for " +
+                            "(jam.CustomSpec.WithSingleArg).a(jam.CustomSpec.WithEmptyArgs): " +
+                            "jam.CoreSpec._$$anon.a(jam.CustomSpec.WithEmptyArgs), " +
+                            "jam.CoreSpec._$$anon.b(jam.CustomSpec.WithEmptyArgs)",
+                    )
+                }
+            }
+            "with unresolved implicit arguments" in {
+                new {
+                    val a = brew[WithEmptyArgs]
+                    assertCompilationErrorMessage(
+                        assertCompiles("""jam.brewRec[WithImplicitArgList]"""),
+                        "Unable to resolve implicit instance for " +
+                            "(jam.CustomSpec.WithImplicitArgList).b(jam.CustomSpec.WithSingleArg)",
                     )
                 }
             }

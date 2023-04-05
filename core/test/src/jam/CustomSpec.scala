@@ -11,6 +11,7 @@ object CustomSpec {
     class WithEmptyArgs
     class WithSingleArg(val a: WithEmptyArgs)
     class WithTwoArgs(val a: WithEmptyArgs, val b: WithSingleArg)
+    class WithTwoArgLists(val a: WithEmptyArgs)(val b: WithSingleArg, val c: WithTwoArgs)
     class WithChild
     class WithChildChild extends WithChild
     class WithArgWithChild(val a: WithChild)
@@ -22,13 +23,17 @@ object CustomSpec {
     class WithCustomConstructors(val a: WithEmptyArgs) {
         def this(a: WithSingleArg) = this(a.a)
         def this(a: WithSingleArg, b: WithEmptyArgs) = this(b)
+        def this(a: WithSingleArg, b: Option[WithEmptyArgs]) = this(b.getOrElse(a.a))
+    }
+    class WithPrivateConstructor(val a: WithEmptyArgs) {
+        private def this(a: WithSingleArg) = this(a.a)
     }
     object WithCustomConstructors {
         def apply(a: WithEmptyArgs): WithCustomConstructors = new WithCustomConstructors(a)
         def apply(a: WithSingleArg): WithCustomConstructors = new WithCustomConstructors(a)
-        def apply(a: WithSingleArg, b: WithEmptyArgs): WithCustomConstructors = new WithCustomConstructors(
-            a, b)
+        def apply(a: WithSingleArg, b: WithEmptyArgs): WithCustomConstructors = new WithCustomConstructors(a, b)
         def custom(a: WithEmptyArgs, b: WithEmptyArgs): WithCustomConstructors = apply(a)
+        def option(a: WithEmptyArgs): Option[WithCustomConstructors] = Option(apply(a))
     }
     class WithGenericAndPlainArgs[A](val a: A, val b: WithSingleArg)
     class WithStringArg(val a: String)
