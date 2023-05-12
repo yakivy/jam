@@ -13,4 +13,4 @@ object CustomReadmeSpec {
     class QuotaChecker(val databaseAccess: DatabaseAccess)
 }
 
-class CustomReadmeSpec extends CustomSpec
+trait CustomReadmeSpec extends CustomSpec

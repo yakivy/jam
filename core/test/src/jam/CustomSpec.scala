@@ -3,15 +3,30 @@ package jam
 import javax.inject.Inject
 import org.scalactic.source.Position
 import org.scalatest.Assertion
+import org.scalatest.Assertions
 import org.scalatest.exceptions.TestFailedException
 import org.scalatest.freespec.AnyFreeSpec
 
 object CustomSpec {
     trait Marked
     class WithEmptyArgs
+    class WithEmptyArgList()
     class WithSingleArg(val a: WithEmptyArgs)
     class WithTwoArgs(val a: WithEmptyArgs, val b: WithSingleArg)
-    class WithTwoArgLists(val a: WithEmptyArgs)(val b: WithSingleArg, val c: WithTwoArgs)
+
+    class WithTwoArgsCompanion private (val a: WithEmptyArgs, val b: WithSingleArg)
+    object WithTwoArgsCompanion {
+        def apply(a: WithEmptyArgs, b: WithSingleArg): WithTwoArgsCompanion = new WithTwoArgsCompanion(a, b)
+    }
+
+    class WithTwoArgLists(val a: WithEmptyArgList)(val b: WithSingleArg, val c: WithTwoArgs)
+
+    class WithTwoArgListsInOptionCompanion private (val a: WithEmptyArgs)(val b: WithSingleArg, val c: WithTwoArgsCompanion)
+    object WithTwoArgListsInOptionCompanion {
+        def apply(a: WithEmptyArgs)(b: WithSingleArg, c: WithTwoArgsCompanion): Option[WithTwoArgListsInOptionCompanion] =
+            Option(new WithTwoArgListsInOptionCompanion(a)(b, c))
+    }
+
     class WithChild
     class WithChildChild extends WithChild
     class WithArgWithChild(val a: WithChild)
@@ -36,6 +51,13 @@ object CustomSpec {
         def option(a: WithEmptyArgs): Option[WithCustomConstructors] = Option(apply(a))
     }
     class WithGenericAndPlainArgs[A](val a: A, val b: WithSingleArg)
+
+    class WithGenericAndPlainArgsCompanion[A] private (val a: A, val b: WithSingleArg)
+    object WithGenericAndPlainArgsCompanion {
+        def apply[A](a: A, b: WithSingleArg): WithGenericAndPlainArgsCompanion[A] =
+            new WithGenericAndPlainArgsCompanion(a, b)
+    }
+
     class WithStringArg(val a: String)
     class WithAnnotatedConstructor(val a: Int) {
         @Inject()
@@ -46,8 +68,7 @@ object CustomSpec {
     class WithSingleBrewableArg(val a: WithBrewablePattern)
 }
 
-
-class CustomSpec extends AnyFreeSpec {
+trait CustomSpec extends Assertions {
     def assertCompilationErrorMessage(
         compilesAssert: => Assertion,
         message: String,

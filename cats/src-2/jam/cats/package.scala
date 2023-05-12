@@ -5,8 +5,6 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 package object cats extends JamCatsDsl {
-    type JamCatsDsl = jam.cats.core.JamCatsDsl
-
     def defaultJamConfigImpl(c: blackbox.Context): c.Tree =
         c.universe.reify(new JamConfig(brewRecRegex = ".*")).tree
 

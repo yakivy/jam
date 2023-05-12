@@ -3,8 +3,9 @@ package custom1
 import custom2.myjam
 import jam.CustomSpec
 import jam.CustomSpec._
+import org.scalatest.freespec.AnyFreeSpec
 
-class MyJamSpec extends CustomSpec {
+class MyJamSpec extends AnyFreeSpec with CustomSpec {
     "Jam used in a different package" - {
         "should brew objects" - {
             "in simple module" in {
@@ -21,6 +22,7 @@ class MyJamSpec extends CustomSpec {
             "in simple module" in {
                 new {
                     val a = myjam.brew[WithEmptyArgs]
+                    val aa = myjam.brew[WithEmptyArgList]
                     val b = myjam.brew[WithSingleArg]
                     val c = myjam.brew[WithTwoArgs]
                     val d = myjam.brew[ParentObject.InObject]
@@ -29,7 +31,7 @@ class MyJamSpec extends CustomSpec {
                     assert(c.a.eq(a) && c.b.eq(b) && b.a.eq(a))
                     assert(d.a.eq(a))
                     assert(e.a.eq(b) && e.b.eq(b))
-                    assert(f.a.eq(a) && f.b.eq(b) && f.c.eq(c))
+                    assert(f.a.eq(aa) && f.b.eq(b) && f.c.eq(c))
                 }
             }
             "in simple module recursively" in {

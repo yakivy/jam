@@ -1,13 +1,15 @@
 package jam
 
 import jam.CustomSpec._
+import org.scalatest.freespec.AnyFreeSpec
 
-class CoreSpec extends CustomSpec {
+class CoreSpec extends AnyFreeSpec with CustomSpec {
     "Jam" - {
         "should brew objects" - {
             "in simple module" in {
                 new {
                     val a = jam.brew[WithEmptyArgs]
+                    val aa = jam.brew[WithEmptyArgList]
                     val b = jam.brew[WithSingleArg]
                     val c = jam.brew[WithTwoArgs]
                     val d = jam.brew[ParentObject.InObject]
@@ -16,7 +18,16 @@ class CoreSpec extends CustomSpec {
                     assert(c.a.eq(a) && c.b.eq(b) && b.a.eq(a))
                     assert(d.a.eq(a))
                     assert(e.a.eq(b) && e.b.eq(b))
-                    assert(f.a.eq(a) && f.b.eq(b) && f.c.eq(c))
+                    assert(f.a.eq(aa) && f.b.eq(b) && f.c.eq(c))
+                }
+            }
+
+            "in simple module with companion" in {
+                new {
+                    val a = jam.brew[WithEmptyArgs]
+                    val b = jam.brew[WithSingleArg]
+                    val c = jam.brew[WithTwoArgsCompanion]
+                    assert(c.a.eq(a) && c.b.eq(b) && b.a.eq(a))
                 }
             }
 
@@ -167,7 +178,14 @@ class CoreSpec extends CustomSpec {
             "in simple module recursively" in {
                 new {
                     val c = jam.brewRec[WithTwoArgLists]
-                    assert(!c.a.eq(c.b.a) && !c.a.eq(c.c.a) && !c.b.eq(c.c.b))
+                    assert(!c.b.a.eq(c.c.a) && !c.b.eq(c.c.b))
+                }
+            }
+
+            "in simple module with companion recursively" in {
+                new {
+                    val c = jam.brewRec[WithTwoArgsCompanion]
+                    assert(!c.a.eq(c.b.a))
                 }
             }
 
@@ -260,7 +278,7 @@ class CoreSpec extends CustomSpec {
                 new {
                     assertCompilationErrorMessage(
                         assertCompiles("""jam.brew[WithCustomConstructors]"""),
-                        "More than one primary constructor was found for (jam.CustomSpec.WithCustomConstructors)",
+                        "More than one primary apply method was found for (jam.CustomSpec.WithCustomConstructors)",
                     )
                 }
             }
@@ -268,7 +286,7 @@ class CoreSpec extends CustomSpec {
                 new {
                     assertCompilationErrorMessage(
                         assertCompiles("""jam.brewRec[WithCustomConstructors]"""),
-                        "More than one primary constructor was found for (jam.CustomSpec.WithCustomConstructors)",
+                        "More than one primary apply method was found for (jam.CustomSpec.WithCustomConstructors)",
                     )
                 }
             }

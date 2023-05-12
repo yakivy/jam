@@ -4,8 +4,9 @@ import cats.Monad
 import cats.implicits._
 import jam.CustomReadmeSpec
 import jam.CustomReadmeSpec._
+import org.scalatest.freespec.AnyFreeSpec
 
-class ReadmeCoreSpec extends CustomReadmeSpec {
+class ReadmeCoreSpec extends AnyFreeSpec with CustomReadmeSpec {
     "Readme examples for cats functionality should be valid" in {
         trait UserModule {
             val databaseAccess = jam.brew[DatabaseAccess]

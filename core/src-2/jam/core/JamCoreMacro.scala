@@ -13,9 +13,10 @@ private[jam] class JamCoreMacro(val c: Context) {
     def brewFromImpl[J: c.WeakTypeTag](self: c.Tree)(config: c.Tree): c.Expr[J] = {
         val candidates = findCandidates(self)
         val tpe = implicitly[c.WeakTypeTag[J]].tpe
-        c.Expr(brew(self, tpe, ftpe = None, candidates, getConstructorArguments(tpe, prefix = ""), prefix = "")(
+        val (constructorArgs, createFun, _) = getConstructorArgumentsAndCreateFunction(tpe, ftpe = None, prefix = "")
+        c.Expr(brew(self, tpe, ftpe = None, candidates, constructorArgs, prefix = "")(
             abortOnVacancy,
-            createResultFromConstructor(tpe, _),
+            createFun,
             pure = None,
         ))
     }
@@ -38,9 +39,10 @@ private[jam] class JamCoreMacro(val c: Context) {
         val candidates = findCandidates(self)
         val tpe = implicitly[c.WeakTypeTag[J]].tpe
         val configR = parseConfig(config)
-        c.Expr(brew(self, tpe, ftpe = None, candidates, getConstructorArguments(tpe, prefix = ""), prefix = "")(
+        val (constructorArgs, createFun, _) = getConstructorArgumentsAndCreateFunction(tpe, ftpe = None, prefix = "")
+        c.Expr(brew(self, tpe, ftpe = None, candidates, constructorArgs, prefix = "")(
             createRecOnVacancy(self, configR, candidates),
-            createResultFromConstructor(tpe, _),
+            createFun,
             pure = None,
         ))
     }
@@ -81,6 +83,9 @@ private[jam] class JamCoreMacro(val c: Context) {
     private[jam] def createResultFromConstructor(tpe: c.Type, args: List[List[(c.Type, c.Tree)]]): c.Tree =
         q"new ${tpe.dealias}(...${args.map(_.map(_._2))})"
 
+    private[jam] def createResultFromCompanionConstructor(tpe: c.Type, args: List[List[(c.Type, c.Tree)]]): c.Tree =
+        q"${tpe.typeSymbol.companion}.apply(...${args.map(_.map(_._2))})"
+
     private[jam] def createResultFromFunction(f: c.Tree, args: List[List[(c.Type, c.Tree)]]): c.Tree =
         q"$f(...${args.map(_.map(_._2))})"
 
@@ -111,7 +116,7 @@ private[jam] class JamCoreMacro(val c: Context) {
             .map(s => s.getter.orElse(s).asTerm)
             .toList.distinct.view
             .flatMap { m =>
-                val typeSignature = defs.get(m.name).orElse(Option(m.typeSignatureIn(selfType)).filter(validTpe))
+                val typeSignature = defs.get(m.name).orElse(Option(m.typeSignatureIn(selfType).resultType).filter(validTpe))
                 if (typeSignature.isEmpty && (!m.isMethod || m.asMethod.paramLists.flatten.isEmpty)) c.abort(
                     c.enclosingPosition,
                     s"Unable to resolve the type for ${m.fullName}, " +
@@ -123,17 +128,52 @@ private[jam] class JamCoreMacro(val c: Context) {
             .toList
     }
 
-    private[jam] def getConstructorArguments(tpe: c.Type, prefix: String): List[List[c.Symbol]] = {
+    private[jam] def getConstructorArguments(tpe: c.Type, prefix: String): Option[List[List[c.Symbol]]] = {
         val constructors = tpe.members
             .filter(m => m.isMethod && m.isPublic).map(_.asMethod)
             .filter(m => m.isConstructor && m.typeSignatureIn(tpe).finalResultType =:= tpe)
-        if (constructors.isEmpty)
-            c.abort(c.enclosingPosition, s"Unable to find public constructor for $prefix($tpe)")
-        val annotatedConstructors = constructors.filter(_.annotations.exists(_.tree.tpe.typeSymbol.fullName == "javax.inject.Inject"))
+        val annotatedConstructors = constructors
+            .filter(_.annotations.exists(_.tree.tpe.typeSymbol.fullName == "javax.inject.Inject"))
         val primaryConstructors = if (annotatedConstructors.nonEmpty) annotatedConstructors else constructors
         if (primaryConstructors.size > 1)
             c.abort(c.enclosingPosition, s"More than one primary constructor was found for $prefix($tpe)")
-        primaryConstructors.head.paramLists
+        primaryConstructors.headOption.map(_.paramLists)
+    }
+
+    private[jam] def getCompanionConstructorArguments(
+        jtpe: c.Type,
+        ftpe: Option[c.Type],
+        prefix: String,
+    ): Option[(List[List[c.Symbol]], Boolean)] = {
+        val companionApplies = Option(jtpe.companion)
+            .filter(validTpe)
+            .fold(Iterable.empty[Symbol])(_.members)
+            .filter(m => m.isMethod && m.isPublic).map(_.asMethod)
+            .filter(m => m.name.decodedName.toString == "apply")
+        val fConstructors = ftpe.map(t => appliedType(t.typeConstructor, jtpe))
+            .map(fatpe => companionApplies.filter(m => m.returnType <:< fatpe))
+            .getOrElse(Nil)
+        def constructors = companionApplies.filter(m => m.returnType <:< jtpe)
+        val primaryConstructors = if (fConstructors.nonEmpty) fConstructors else constructors
+        if (primaryConstructors.size > 1)
+            c.abort(c.enclosingPosition, s"More than one primary apply method was found for $prefix($jtpe)")
+        primaryConstructors.headOption.map(_.paramLists -> fConstructors.nonEmpty)
+    }
+
+    private[jam] def getConstructorArgumentsAndCreateFunction(
+        jtpe: c.Type,
+        ftpe: Option[c.Type],
+        prefix: String,
+    ): (List[List[c.Symbol]], List[List[(c.Type, c.Tree)]] => c.Tree, Boolean) = {
+        getCompanionConstructorArguments(jtpe, ftpe, prefix)
+            .map { case (args, flat) => (args, createResultFromCompanionConstructor(jtpe, _), flat) }
+            .orElse(
+                getConstructorArguments(jtpe, prefix)
+                    .map(args => (args, createResultFromConstructor(jtpe, _), false))
+            )
+            .getOrElse(
+                c.abort(c.enclosingPosition, s"Unable to find public constructor or apply method for $prefix($jtpe)")
+            )
     }
 
     private[jam] def getFunctionArguments(f: c.Tree): List[List[c.Symbol]] = f match {
@@ -163,9 +203,10 @@ private[jam] class JamCoreMacro(val c: Context) {
     )(tpe: c.Type, prefix: String): c.Tree = {
         def rec(tpe: c.Type, prefix: String): c.Tree = {
             validateBrewRecType(tpe, config, prefix)
-            brew(self, tpe, ftpe = None, candidates, getConstructorArguments(tpe, prefix), prefix)(
+            val (constructorArgs, createFun, _) = getConstructorArgumentsAndCreateFunction(tpe, ftpe = None, prefix)
+            brew(self, tpe, ftpe = None, candidates, constructorArgs, prefix)(
                 rec(_, _),
-                createResultFromConstructor(tpe, _),
+                createFun,
                 pure = None,
             )
         }
@@ -174,7 +215,7 @@ private[jam] class JamCoreMacro(val c: Context) {
 
     private[jam] def brew(
         self: c.Tree,
-        atpe: c.Type,
+        jtpe: c.Type,
         ftpe: Option[c.Type],
         candidates: List[(c.universe.TermSymbol, c.universe.Type)],
         arguments: List[List[c.Symbol]],
@@ -185,13 +226,13 @@ private[jam] class JamCoreMacro(val c: Context) {
         pure: Option[c.Tree => c.Tree],
     ): c.Tree = {
         val resolvedArguments = arguments.map(l => l.headOption.exists(_.isImplicit) -> l).map { case (impl, l) => l.map { p =>
-            val ptpe = p.typeSignature.substituteTypes(atpe.typeSymbol.asType.typeParams, atpe.typeArgs)
+            val ptpe = p.typeSignature.substituteTypes(jtpe.typeSymbol.asType.typeParams, jtpe.typeArgs)
             val pftpe = ftpe.map(t => appliedType(t.typeConstructor, ptpe))
             ptpe -> (if (impl) {
                 inferImplicit(tq"${p.typeSignature}").getOrElse(
                     c.abort(
                         c.enclosingPosition,
-                        s"Unable to resolve implicit instance for $prefix($atpe).${p.name}($ptpe)"
+                        s"Unable to resolve implicit instance for $prefix($jtpe).${p.name}($ptpe)"
                     )
                 )
             } else {
@@ -201,11 +242,11 @@ private[jam] class JamCoreMacro(val c: Context) {
                 }
                 if (parameterCandidates.size > 1) c.abort(
                     c.enclosingPosition,
-                    s"More than one injection candidate was found for $prefix($atpe).${p.name}($ptpe): " +
+                    s"More than one injection candidate was found for $prefix($jtpe).${p.name}($ptpe): " +
                         s"${parameterCandidates.map(c => s"${c._1.fullName}(${c._2})").sorted.mkString(", ")}"
                 )
                 parameterCandidates.headOption.fold(
-                    resolveVacancy(ptpe, s"$prefix($atpe).${p.name}")
+                    resolveVacancy(ptpe, s"$prefix($jtpe).${p.name}")
                 ) { m =>
                     val arg = q"$self.${m._1.name}"
                     if (pftpe.forall(m._2.finalResultType <:< _)) arg else pure.get(arg)

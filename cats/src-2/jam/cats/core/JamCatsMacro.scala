@@ -41,6 +41,17 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         q"$F.flatten(${liftFunctionToF(ftpe)(f)(F)(argss)})"
     }
 
+    private def liftFunctionToFAndFlattenIfNeeded[F[_]](
+        ftpe: c.Type,
+        flat: Boolean,
+    )(f: List[List[(c.Type, c.Tree)]] => c.Tree)
+        (F: c.Expr[Monad[F]])(
+        argss: List[List[(c.Type, c.Tree)]]
+    ): c.Tree = {
+        if (flat) liftFunctionToFAndFlatten(ftpe)(f)(F)(argss)
+        else liftFunctionToF(ftpe)(f)(F)(argss)
+    }
+
     private def pure[F[_]](F: c.Expr[Monad[F]])(a: c.Tree): c.Tree = {
         import c.universe._
         q"$F.pure($a)"
@@ -53,9 +64,10 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         import c.universe._
         val candidates = findCandidates(self)
         val (jtpe, ftpe) = (JT.tpe.dealias, FT.tpe.dealias)
-        c.Expr(brew(self, jtpe, Option(ftpe), candidates, getConstructorArguments(jtpe, prefix = ""), prefix = "")(
+        val (constructorArgs, createFun, flat) = getConstructorArgumentsAndCreateFunction(jtpe, Option(ftpe), prefix = "")
+        c.Expr(brew(self, jtpe, Option(ftpe), candidates, constructorArgs, prefix = "")(
             abortOnVacancy,
-            liftFunctionToF(ftpe)(createResultFromConstructor(jtpe, _))(F),
+            liftFunctionToFAndFlattenIfNeeded(ftpe, flat)(createFun)(F),
             Option(pure(F)),
         ))
     }
@@ -119,9 +131,10 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         val candidates = findCandidates(self)
         val (jtpe, ftpe) = (JT.tpe.dealias, FT.tpe.dealias)
         val configR = parseConfig(config)
-        c.Expr(brew(self, jtpe, Option(ftpe), candidates, getConstructorArguments(jtpe, prefix = ""), prefix = "")(
+        val (constructorArgs, createFun, flat) = getConstructorArgumentsAndCreateFunction(jtpe, Option(ftpe), prefix = "")
+        c.Expr(brew(self, jtpe, Option(ftpe), candidates, constructorArgs, prefix = "")(
             createRecOnVacancyF(self, ftpe, configR, candidates)(F),
-            liftFunctionToF(ftpe)(createResultFromConstructor(jtpe, _))(F),
+            liftFunctionToFAndFlattenIfNeeded(ftpe, flat)(createFun)(F),
             Option(pure(F)),
         ))
     }
@@ -179,9 +192,10 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
     )(F: c.Expr[Monad[F]])(jtpe: c.Type, prefix: String): c.Tree = {
         def rec(jtpe: c.Type, prefix: String): c.Tree = {
             validateBrewRecType(jtpe, config, prefix)
-            brew(self, jtpe, Option(ftpe), candidates, getConstructorArguments(jtpe, prefix), prefix)(
+            val (constructorArgs, createFun, flat) = getConstructorArgumentsAndCreateFunction(jtpe, Option(ftpe), prefix)
+            brew(self, jtpe, Option(ftpe), candidates, constructorArgs, prefix)(
                 rec(_, _),
-                liftFunctionToF(ftpe)(createResultFromConstructor(jtpe, _))(F),
+                liftFunctionToFAndFlattenIfNeeded(ftpe, flat)(createFun)(F),
                 Option(pure(F)),
             )
         }

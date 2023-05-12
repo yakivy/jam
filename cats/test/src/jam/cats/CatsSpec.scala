@@ -2,13 +2,15 @@ package jam.cats
 
 import jam.CustomSpec
 import jam.CustomSpec._
+import org.scalatest.freespec.AnyFreeSpec
 
-class CatsSpec extends CustomSpec {
+class CatsSpec extends AnyFreeSpec with CustomSpec {
     "Jam Cats" - {
         "should brew objects" - {
             "in simple module" in {
                 new {
                     val a = jam.brew[WithEmptyArgs]
+                    val aa = jam.brew[WithEmptyArgList]
                     val b = jam.cats.brewF[Option][WithSingleArg]
                     val c = jam.cats.brewF[Option][WithTwoArgs]
                     val d = jam.cats.brewF[Option][ParentObject.InObject]
@@ -17,7 +19,18 @@ class CatsSpec extends CustomSpec {
                     assert(c.get.a.eq(a) && c.get.b.eq(b.get) && b.get.a.eq(a))
                     assert(d.get.a.eq(a))
                     assert(e.get.a.eq(b.get) && e.get.b.eq(b.get))
-                    assert(f.get.a.eq(a) && f.get.b.eq(b.get) && f.get.c.eq(c.get))
+                    assert(f.get.a.eq(aa) && f.get.b.eq(b.get) && f.get.c.eq(c.get))
+                }
+            }
+
+            "in simple module with companion" in {
+                new {
+                    val a = jam.brew[WithEmptyArgs]
+                    val b = jam.cats.brewF[Option][WithSingleArg]
+                    val c = jam.cats.brewF[Option][WithTwoArgsCompanion]
+                    val d = jam.cats.brewF[Option][WithTwoArgListsInOptionCompanion]
+                    assert(c.get.a.eq(a) && c.get.b.eq(b.get) && b.get.a.eq(a))
+                    assert(d.get.a.eq(a) && d.get.b.eq(b.get) && d.get.c.eq(c.get))
                 }
             }
 
@@ -74,6 +87,13 @@ class CatsSpec extends CustomSpec {
             "in simple module recursively" in {
                 new {
                     val c = jam.cats.brewRecF[Option][WithTwoArgLists]
+                    assert(!c.get.b.a.eq(c.get.c.a) && !c.get.b.eq(c.get.c.b))
+                }
+            }
+
+            "in simple module with companion recursively" in {
+                new {
+                    val c = jam.cats.brewRecF[Option][WithTwoArgListsInOptionCompanion]
                     assert(!c.get.a.eq(c.get.b.a) && !c.get.a.eq(c.get.c.a) && !c.get.b.eq(c.get.c.b))
                 }
             }

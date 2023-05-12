@@ -8,7 +8,7 @@
 Jam is an incredibly simple DI Scala library.
 
 Essential differences from [macwire](https://github.com/softwaremill/macwire):
-- is simpler, faster and more transparent
+- is simpler and faster
 - searches candidates only in `this`
 - supports Scala 3, Scala JS, Scala Native
 - supports macro configuration
@@ -18,14 +18,16 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 2. [Brew types](#brew-types)
 3. [Implementation details](#implementation-details)
 4. [Cats integration](#cats-integration)
-5. [Macro configuration](#macro-configuration)
-6. [Changelog](#changelog)
+5. [Reval monad](#reval-monad)
+6. [Macro configuration](#macro-configuration)
+7. [Roadmap](#roadmap)
+8. [Changelog](#changelog)
 
 ### Quick start
 Latest stable jam dependency:
 ```scala
 libraryDependencies += Seq(
-    "com.github.yakivy" %%% "jam-core" % "0.3.0",
+    "com.github.yakivy" %%% "jam-core" % "0.4.0",
 )
 ```
 Usage example:
@@ -107,9 +109,13 @@ trait A {
     }
 }
 ```
+- constructor function is being searched in following order:
+  - companion apply method that returns a subtype of brewed type in `F[_]` context (with `jam-cats` module)
+  - companion apply method that returns a subtype of brewed type
+  - class constructor with `@Inject` annotation
+  - class constructor
 - `val` member works like a singleton provider (instance will be reused for all injections in `this` score), `def` member works like a prototype provider (one method call per each injection)
 - library injects only non-implicit constructor arguments; implicits will be resolved by the compiler
-- jam is intended to be minimal; features like scopes or object lifecycles should be implemented manually
 
 ### Cats integration
 `jam-cats` module provides `brewF` analogies for all `brew` methods using `cats.Monad` typeclass, that allow to brew objects in `F[_]` context, for example: 
@@ -137,6 +143,50 @@ trait UserModule {
 }
 ```
 
+### Reval monad
+
+`jam-monad` module provides `Reval` monad that encodes the idea of allocating an object which has an associated finalizer. Can be thought of as a mix of `cats.effect.Resource` and `cats.Eval`. It can be useful in cases when you need to control an object lifecycle: how many times the object should be allocated, when it should be allocated and how it should be closed. In the combination with `jam-cats` it should cover most DI cases. For example:
+```scala
+class DatabaseAccess private ()
+object DatabaseAccess {
+    val apply: Reval[IO, DatabaseAccess] =
+        Reval.makeThunkLater {
+            println("Creating database access")
+            new DatabaseAccess()
+        }(_ => println("Closing database access"))
+}
+
+class SecurityFilter private (val databaseAccess: DatabaseAccess)
+object SecurityFilter {
+    def apply(databaseAccess: DatabaseAccess): Reval[IO, SecurityFilter] =
+        Reval.makeThunkAlways {
+            println("Creating security filter")
+            new SecurityFilter(databaseAccess)
+        }(_ => println("Closing security filter"))
+}
+
+class UserFinder(val databaseAccess: DatabaseAccess, val securityFilter: SecurityFilter)
+class OrganizationFinder(val databaseAccess: DatabaseAccess, val securityFilter: SecurityFilter)
+
+trait FinderModule {
+    val finders = (
+        jam.cats.brewRecF[Reval[IO, *]][UserFinder],
+        jam.cats.brewRecF[Reval[IO, *]][OrganizationFinder],
+    ).tupled
+}
+
+finderModule.finders.usePure.unsafeRunSync()
+```
+Will produce the following output:
+```
+Creating database access
+Creating security filter
+Creating security filter
+Closing security filter
+Closing security filter
+Closing database access
+```
+
 ### Macro configuration
 It's also possible to configure brewing behaviour with an implicit macro JamConfig instance, so here is an example if you for example want to limit recursive brewing only to classes that have "brewable" in the name:
 ```scala
@@ -157,9 +207,20 @@ object myjam extends jam.core.JamCoreDsl with jam.cats.core.JamCatsDsl {
     }
 }
 ```
-then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (WithSingleArg).a(WithEmptyArgs) is prohibited from config. WithEmptyArgs doesn't match (?i).*brewable.* regex.` compilation error. `JamConfig` is a dependent type, so any brew methods that is called from `myjam` object should automatically resolve implicit config without additional imports.
+then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (WithSingleArg).a(WithEmptyArgs) is prohibited from config. WithEmptyArgs doesn't match (?i).*brewable.* regex.` compilation error.
+
+`JamConfig` is a dependent type, so any brew methods that is called from `myjam` object should automatically resolve implicit config without additional imports.
+
+### Roadmap
+- extract annotation pattern (instead of hardcoded `javax.inject.Inject`) for constructor selection to macro config
+- extract method pattern (instead of hardcoded `apply`) for companion constructor selection to macro config
+- resolve generic apply method if generics are the same to class constructor
 
 ### Changelog
+
+#### 0.4.0
+- add `jam.monad.Reval` monad
+- resolve constructor from companion object
 
 #### 0.3.0
 - add `jam.cats` module

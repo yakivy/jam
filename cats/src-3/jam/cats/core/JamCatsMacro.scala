@@ -34,6 +34,15 @@ object JamCatsMacro {
         }.asTerm
     }
 
+    private def liftFunctionToFAndFlattenIfNeeded[F[_] : Type, A: Type](using q: Quotes)(flat: Boolean)(
+        f: List[List[(q.reflect.TypeRepr, q.reflect.Term)]] => q.reflect.Term
+    )(F: Expr[Monad[F]])(
+        argss: List[List[(q.reflect.TypeRepr, q.reflect.Term)]]
+    ): q.reflect.Term = {
+        if (flat) liftFunctionToFAndFlatten(f)(F)(argss)
+        else liftFunctionToF(f)(F)(argss)
+    }
+
     private def liftFunctionToFAndFlatten[F[_] : Type, A: Type](using q: Quotes)(
         f: List[List[(q.reflect.TypeRepr, q.reflect.Term)]] => q.reflect.Term
     )(F: Expr[Monad[F]])(
@@ -50,11 +59,11 @@ object JamCatsMacro {
     ): Expr[F[J]] = {
         import q.reflect.*
         val (ftpe, jtpe) = (TypeRepr.of[F], TypeRepr.of[J])
-        val constructor = getConstructor(jtpe, prefix = "")
         val candidates = findCandidates(self.asTerm)
-        brew(jtpe, Option(ftpe), self.asTerm, constructor._2, candidates, prefix = "")(
+        val (constructorArgs, createFun, flat) = getConstructorArgumentsAndCreateFunction(jtpe, Option(ftpe), prefix = "")
+        brew(jtpe, Option(ftpe), self.asTerm, constructorArgs, candidates, prefix = "")(
             abortOnVacancy,
-            liftFunctionToF[F, J](createResultFromConstructor(jtpe, constructor._1, _))(F),
+            liftFunctionToFAndFlattenIfNeeded[F, J](flat)(createFun)(F),
             Option(pure(F)),
         ).asExprOf[F[J]]
     }
@@ -110,12 +119,12 @@ object JamCatsMacro {
     ): Expr[F[J]] = {
         import q.reflect.*
         val (ftpe, jtpe) = (TypeRepr.of[F], TypeRepr.of[J])
-        val constructor = getConstructor(jtpe, prefix = "")
-        val candidates = findCandidates(self.asTerm)
         val configR = parseConfig(config)
-        brew(jtpe, Option(ftpe), self.asTerm, constructor._2, candidates, prefix = "")(
+        val candidates = findCandidates(self.asTerm)
+        val (constructorArgs, createFun, flat) = getConstructorArgumentsAndCreateFunction(jtpe, Option(ftpe), prefix = "")
+        brew(jtpe, Option(ftpe), self.asTerm, constructorArgs, candidates, prefix = "")(
             createRecOnVacancyF(self, ftpe, configR, candidates)(F),
-            liftFunctionToF[F, J](createResultFromConstructor(jtpe, constructor._1, _))(F),
+            liftFunctionToFAndFlattenIfNeeded[F, J](flat)(createFun)(F),
             Option(pure(F)),
         ).asExprOf[F[J]]
     }
@@ -176,11 +185,11 @@ object JamCatsMacro {
         import q.reflect.*
         def rec(jtpe: TypeRepr, prefix: String): Term = {
             validateBrewRecType(jtpe, config, prefix)
-            val constructor = getConstructor(jtpe, prefix)
+            val (constructorArgs, createFun, flat) = getConstructorArgumentsAndCreateFunction(jtpe, Option(ftpe), prefix)
             jtpe.asType match { case '[t] =>
-                brew(jtpe, Option(ftpe), self.asTerm, constructor._2, candidates, prefix)(
+                brew(jtpe, Option(ftpe), self.asTerm, constructorArgs, candidates, prefix)(
                     rec(_, _),
-                    liftFunctionToF[F, t](createResultFromConstructor(jtpe, constructor._1, _))(F),
+                    liftFunctionToFAndFlattenIfNeeded[F, t](flat)(createFun)(F),
                     Option(pure(F)),
                 )
             }
