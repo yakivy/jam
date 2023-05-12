@@ -1,7 +1,6 @@
 # Jam <img src="https://www.svgrepo.com/show/128194/jam.svg" height="32px" alt="Jam" />
 [![Maven Central](https://img.shields.io/maven-central/v/com.github.yakivy/jam-core_2.13.svg)](https://search.maven.org/search?q=g:com.github.yakivy%20jam)
 [![Sonatype Nexus (Snapshots)](https://img.shields.io/nexus/s/https/oss.sonatype.org/com.github.yakivy/jam-core_2.13.svg)](https://oss.sonatype.org/content/repositories/snapshots/com/github/yakivy/jam-core_2.13/)
-[![Build Status](https://travis-ci.com/yakivy/jam.svg?branch=master)](https://travis-ci.com/yakivy/jam)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 <a href="https://typelevel.org/cats/"><img src="https://typelevel.org/cats/img/cats-badge.svg" height="40px" align="right" alt="Cats friendly" /></a>
 
@@ -12,6 +11,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 - searches candidates only in `this`
 - supports Scala 3, Scala JS, Scala Native
 - supports macro configuration
+- provides tools for object lifecycle control
 
 ### Table of contents
 1. [Quick start](#quick-start)
