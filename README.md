@@ -218,6 +218,9 @@ then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (
 
 ### Changelog
 
+#### 0.4.1
+- fix implicit args resolution for jam-cats
+
 #### 0.4.0
 - add `jam.monad.Reval` monad
 - resolve constructor from companion object

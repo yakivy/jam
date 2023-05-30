@@ -91,6 +91,14 @@ class CatsSpec extends AnyFreeSpec with CustomSpec {
                 }
             }
 
+            "in module with implicits recursively" in {
+                implicit val a = new WithSingleArg(new WithEmptyArgs)
+                new {
+                    val c = jam.cats.brewRecF[Option][WithImplicitArgList]
+                    assert(c.get.b.eq(a))
+                }
+            }
+
             "in simple module with companion recursively" in {
                 new {
                     val c = jam.cats.brewRecF[Option][WithTwoArgListsInOptionCompanion]

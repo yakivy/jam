@@ -280,13 +280,14 @@ object JamCoreMacro {
         val constructorArgs = arguments.map((impl, l) => l.map(p =>
             val ptpe = resolveTpeRef(Ref(p.symbol).tpe.widen)(tptArgs)
             val pftpe = ftpe.map(_.appliedTo(ptpe))
-            ptpe -> (if (impl) ptpe.asType match {
-                case '[tpe] => (Expr.summon[tpe] match {
+            ptpe -> (if (impl) ptpe.asType match { case '[tpe] =>
+                val arg = (Expr.summon[tpe] match {
                     case Some(arg) => arg
                     case _ => report.errorAndAbort(
                         s"Unable to resolve implicit instance for $prefix(${jtpe.show}).${p.name}(${ptpe.show})"
                     )
                 }).asTerm
+                pure.fold(arg)(_.apply(arg))
             } else {
                 val parameterCandidates = candidates.filter(c => c._3 <:< ptpe || pftpe.exists(c._3 <:< _))
                 if (parameterCandidates.size > 1) report.errorAndAbort(

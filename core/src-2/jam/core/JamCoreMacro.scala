@@ -229,12 +229,13 @@ private[jam] class JamCoreMacro(val c: Context) {
             val ptpe = p.typeSignature.substituteTypes(jtpe.typeSymbol.asType.typeParams, jtpe.typeArgs)
             val pftpe = ftpe.map(t => appliedType(t.typeConstructor, ptpe))
             ptpe -> (if (impl) {
-                inferImplicit(tq"${p.typeSignature}").getOrElse(
+                val arg = inferImplicit(tq"${p.typeSignature}").getOrElse(
                     c.abort(
                         c.enclosingPosition,
                         s"Unable to resolve implicit instance for $prefix($jtpe).${p.name}($ptpe)"
                     )
                 )
+                pure.fold(arg)(_.apply(arg))
             } else {
                 val parameterCandidates = candidates.filter { m =>
                     (m._2.finalResultType <:< ptpe || pftpe.exists(m._2.finalResultType <:< _)) &&
