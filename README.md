@@ -149,7 +149,8 @@ trait UserModule {
 ```scala
 class DatabaseAccess private ()
 object DatabaseAccess {
-    val apply: Reval[IO, DatabaseAccess] =
+    def apply: Reval[IO, DatabaseAccess] =
+        //to allocate instance once on first request (singleton-like)
         Reval.makeThunkLater {
             println("Creating database access")
             new DatabaseAccess()
@@ -159,6 +160,7 @@ object DatabaseAccess {
 class SecurityFilter private (val databaseAccess: DatabaseAccess)
 object SecurityFilter {
     def apply(databaseAccess: DatabaseAccess): Reval[IO, SecurityFilter] =
+        //to allocate instance on every request (prototype-like)
         Reval.makeThunkAlways {
             println("Creating security filter")
             new SecurityFilter(databaseAccess)
