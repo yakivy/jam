@@ -27,7 +27,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 Latest stable jam dependency:
 ```scala
 libraryDependencies += Seq(
-    "com.github.yakivy" %%% "jam-core" % "0.4.0",
+    "com.github.yakivy" %%% "jam-core" % "0.4.1",
 )
 ```
 Usage example:
@@ -214,6 +214,7 @@ then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (
 `JamConfig` is a dependent type, so any brew methods that is called from `myjam` object should automatically resolve implicit config without additional imports.
 
 ### Roadmap
+- fix error message on vacancy for `brewF`
 - extract annotation pattern (instead of hardcoded `javax.inject.Inject`) for constructor selection to macro config
 - extract method pattern (instead of hardcoded `apply`) for companion constructor selection to macro config
 - resolve generic apply method if generics are the same to class constructor
