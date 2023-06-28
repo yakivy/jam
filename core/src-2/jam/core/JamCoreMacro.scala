@@ -101,7 +101,7 @@ private[jam] class JamCoreMacro(val c: Context) {
     }
 
     protected def findCandidates(self: c.Tree): List[(c.universe.TermSymbol, c.universe.Type)] = {
-        val defs: Map[TermName, Type] = c.enclosingImpl.collect {
+        val defs = c.enclosingImpl.children.flatMap(_.children).collect {
             case t: DefDef if t.tparams.isEmpty && t.vparamss.flatten.isEmpty => t
             case t: ValDef => t
         }.filterNot(_.mods.hasFlag(Flag.PARAM)).flatMap(t => resolveTermType(t).map(t.name -> _)).toMap
@@ -116,7 +116,7 @@ private[jam] class JamCoreMacro(val c: Context) {
             .map(s => s.getter.orElse(s).asTerm)
             .toList.distinct.view
             .flatMap { m =>
-                val typeSignature = defs.get(m.name).orElse(Option(m.typeSignatureIn(selfType).resultType).filter(validTpe))
+                val typeSignature = defs.get(m.name).orElse(Option(m.typeSignatureIn(selfType).finalResultType).filter(validTpe))
                 if (typeSignature.isEmpty && (!m.isMethod || m.asMethod.paramLists.flatten.isEmpty)) c.abort(
                     c.enclosingPosition,
                     s"Unable to resolve the type for ${m.fullName}, " +
@@ -238,7 +238,7 @@ private[jam] class JamCoreMacro(val c: Context) {
                 pure.fold(arg)(_.apply(arg))
             } else {
                 val parameterCandidates = candidates.filter { m =>
-                    (m._2.finalResultType <:< ptpe || pftpe.exists(m._2.finalResultType <:< _)) &&
+                    (m._2 <:< ptpe || pftpe.exists(m._2 <:< _)) &&
                         (!m._1.isMethod || m._1.asMethod.paramLists.flatten.isEmpty)
                 }
                 if (parameterCandidates.size > 1) c.abort(
@@ -250,7 +250,7 @@ private[jam] class JamCoreMacro(val c: Context) {
                     resolveVacancy(ptpe, s"$prefix($jtpe).${p.name}")
                 ) { m =>
                     val arg = q"$self.${m._1.name}"
-                    if (pftpe.forall(m._2.finalResultType <:< _)) arg else pure.get(arg)
+                    if (pftpe.forall(m._2 <:< _)) arg else pure.get(arg)
                 }
             })
         }}

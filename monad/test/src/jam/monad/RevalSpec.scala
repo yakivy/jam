@@ -92,6 +92,24 @@ class RevalSpec extends CustomMonadSpec {
                     }
                     module.assertion
                 }
+                "with local anonymous trait" in {
+                    case class A()
+                    trait B
+                    case class C(a: A, b: B)
+
+                    object module {
+                        val b = {
+                            val b = new B {}
+                            b
+                        }.pure[Option]
+
+                        val c = List(
+                            jam.cats.brewRecF[Option][C],
+                        ).sequence.map(_.head)
+                        val assertion = assert(c.isDefined)
+                    }
+                    module.assertion
+                }
                 "with always" in {
                     object module {
                         var ac = 0

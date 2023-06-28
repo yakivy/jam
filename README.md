@@ -27,7 +27,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 Latest stable jam dependency:
 ```scala
 libraryDependencies += Seq(
-    "com.github.yakivy" %%% "jam-core" % "0.4.1",
+    "com.github.yakivy" %%% "jam-core" % "0.4.2",
 )
 ```
 Usage example:
@@ -220,6 +220,9 @@ then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (
 - resolve generic apply method if generics are the same to class constructor
 
 ### Changelog
+
+#### 0.4.2
+- fix type candidates resolving for Scala 2.x
 
 #### 0.4.1
 - fix implicit args resolution for jam-cats
