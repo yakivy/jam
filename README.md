@@ -222,7 +222,7 @@ then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (
 ### Changelog
 
 #### 0.4.2
-- fix type candidates resolving for Scala 2.x
+- fix candidates type resolving for Scala 2.x
 
 #### 0.4.1
 - fix implicit args resolution for jam-cats
