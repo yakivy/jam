@@ -109,12 +109,16 @@ class CoreSpec extends AnyFreeSpec with CustomSpec {
                     val a = new WithEmptyArgs
                     val b = new WithSingleArg(a)
 
-                    val c = jam.brewWith(new WithCustomConstructors(_: WithEmptyArgs))
+                    val cf = new WithCustomConstructors(_: WithEmptyArgs)
+                    val c = jam.brewWith(cf.apply _)
                     val d = jam.brewWith(new WithCustomConstructors(_: WithSingleArg))
                     val e = jam.brewWith(new WithCustomConstructors(_: WithSingleArg, _: WithEmptyArgs))
                     val f = jam.brewWith(WithCustomConstructors.apply(_: WithEmptyArgs))
                     val g = jam.brewWith(WithCustomConstructors.apply(_: WithSingleArg))
-                    val h = jam.brewWith(WithCustomConstructors.apply(_: WithSingleArg, _: WithEmptyArgs))
+                    val h = {
+                        val aa = a
+                        jam.brewWith(WithCustomConstructors.apply(_: WithSingleArg, aa))
+                    }
                     val i = jam.brewWith(WithCustomConstructors.custom _)
 
                     assert(c.a.eq(a))
@@ -270,7 +274,7 @@ class CoreSpec extends AnyFreeSpec with CustomSpec {
                     assertCompilationErrorMessage(
                         assertCompiles("""jam.brewWith(WithCustomConstructors.apply(_: WithSingleArg))"""),
                         "Unable to find instance for (jam.CustomSpec.WithCustomConstructors).x$1(jam.CustomSpec.WithSingleArg)",
-                        "Unable to find instance for (jam.CustomSpec.WithCustomConstructors)._$19(jam.CustomSpec.WithSingleArg)",
+                        "Unable to find instance for (jam.CustomSpec.WithCustomConstructors)._$18(jam.CustomSpec.WithSingleArg)",
                     )
                 }
             }
@@ -314,6 +318,22 @@ class CoreSpec extends AnyFreeSpec with CustomSpec {
                         assertCompiles("""jam.brewRec[WithImplicitArgList]"""),
                         "Unable to resolve implicit instance for " +
                             "(jam.CustomSpec.WithImplicitArgList).b(jam.CustomSpec.WithSingleArg)",
+                    )
+                }
+            }
+            "unsupported function type" in {
+                new {
+                    assertCompilationErrorMessage(
+                        assertCompiles(
+                            """jam.brewWith {
+                              |    val f = new WithSingleArg(_: WithEmptyArgs)
+                              |    f
+                              |}""".stripMargin
+                        ),
+                        ".brewWith supports only anonymous functions as an argument, " +
+                            "so try to extract your logic into a variable and trigger eta expansion like .brewWith(f.apply _)",
+                        ".brewWith supports only anonymous functions as an argument, " +
+                            "so try to extract your logic into a variable and trigger eta expansion like .brewWith(f.apply)",
                     )
                 }
             }

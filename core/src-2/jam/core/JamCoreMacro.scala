@@ -87,7 +87,7 @@ private[jam] class JamCoreMacro(val c: Context) {
         q"${tpe.typeSymbol.companion}.apply(...${args.map(_.map(_._2))})"
 
     private[jam] def createResultFromFunction(f: c.Tree, args: List[List[(c.Type, c.Tree)]]): c.Tree =
-        q"$f(...${args.map(_.map(_._2))})"
+        q"$f.apply(...${args.map(_.map(_._2))})"
 
     private def validTpe(tpe: c.Type): Boolean =
         tpe != null &&
@@ -179,7 +179,11 @@ private[jam] class JamCoreMacro(val c: Context) {
     private[jam] def getFunctionArguments(f: c.Tree): List[List[c.Symbol]] = f match {
         case Block(Nil, Function(args, _)) => List(args.map(_.symbol))
         case Function(args, _) => List(args.map(_.symbol))
-        case _ => c.abort(c.enclosingPosition, s"Unsupported function type ${f.tpe}")
+        case _ => c.abort(
+            c.enclosingPosition,
+            ".brewWith supports only anonymous functions as an argument, " +
+                "so try to extract your logic into a variable and trigger eta expansion like .brewWith(f.apply _)"
+        )
     }
 
     private def inferImplicit[A: c.universe.Liftable](tpe: A): Option[c.Tree] = {
@@ -229,7 +233,7 @@ private[jam] class JamCoreMacro(val c: Context) {
             val ptpe = p.typeSignature.substituteTypes(jtpe.typeSymbol.asType.typeParams, jtpe.typeArgs)
             val pftpe = ftpe.map(t => appliedType(t.typeConstructor, ptpe))
             ptpe -> (if (impl) {
-                val arg = inferImplicit(tq"${p.typeSignature}").getOrElse(
+                val arg = inferImplicit(tq"$ptpe").getOrElse(
                     c.abort(
                         c.enclosingPosition,
                         s"Unable to resolve implicit instance for $prefix($jtpe).${p.name}($ptpe)"

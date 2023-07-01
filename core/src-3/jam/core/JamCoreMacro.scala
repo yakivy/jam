@@ -227,7 +227,10 @@ object JamCoreMacro {
         Option(f)
             .collect { case f: Term => f.underlyingArgument }
             .collect { case Lambda(args, _) => List(false -> args) }
-            .getOrElse(report.errorAndAbort(s"Unsupported function type ${f.show}"))
+            .getOrElse(report.errorAndAbort(
+                ".brewWith supports only anonymous functions as an argument, " +
+                    "so try to extract your logic into a variable and trigger eta expansion like .brewWith(f.apply)"
+            ))
     }
 
     private def getTpeArguments(using q: Quotes)(tpe: q.reflect.TypeRepr): Option[Map[String, q.reflect.TypeRepr]] = {

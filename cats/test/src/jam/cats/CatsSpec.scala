@@ -62,7 +62,11 @@ class CatsSpec extends AnyFreeSpec with CustomSpec {
 
                     val f = jam.cats.brewWithF[Option](WithCustomConstructors.apply(_: WithEmptyArgs))
                     val g = jam.cats.brewWithFlatF[Option]((a: WithSingleArg) => Option(WithCustomConstructors.apply(a)))
-                    val h = jam.cats.brewWithF[Option](WithCustomConstructors.apply(_: WithSingleArg, _: WithEmptyArgs))
+                    //causes compile error on Scala 2.x
+                    //val h = b.flatMap(b => jam.cats.brewWithF[Option]((a: WithEmptyArgs) => WithCustomConstructors.apply(b, a)))
+                    val h = b.flatMap(b =>
+                        jam.cats.brewWithF[Option]((a: WithEmptyArgs) => WithCustomConstructors.apply(_: WithSingleArg, a)).map(_.apply(b))
+                    )
                     val i = jam.cats.brewWithFlatF[Option](WithCustomConstructors.option _)
 
                     assert(f.get.a.eq(a))

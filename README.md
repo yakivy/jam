@@ -7,8 +7,7 @@
 Jam is an incredibly simple DI Scala library.
 
 Essential differences from [macwire](https://github.com/softwaremill/macwire):
-- is simpler and faster
-- searches candidates only in `this`
+- is simpler and faster, searches candidates only in `this`
 - supports Scala 3, Scala JS, Scala Native
 - supports macro configuration
 - provides tools for object lifecycle control
@@ -20,14 +19,15 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 4. [Cats integration](#cats-integration)
 5. [Reval monad](#reval-monad)
 6. [Macro configuration](#macro-configuration)
-7. [Roadmap](#roadmap)
-8. [Changelog](#changelog)
+7. [Troubleshooting](#troubleshooting)
+8. [Roadmap](#roadmap)
+9. [Changelog](#changelog)
 
 ### Quick start
 Latest stable jam dependency:
 ```scala
 libraryDependencies += Seq(
-    "com.github.yakivy" %%% "jam-core" % "0.4.2",
+    "com.github.yakivy" %%% "jam-core" % "0.4.3",
 )
 ```
 Usage example:
@@ -213,6 +213,27 @@ then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (
 
 `JamConfig` is a dependent type, so any brew methods that is called from `myjam` object should automatically resolve implicit config without additional imports.
 
+### Troubleshooting
+- Scala 2.x compilation of `brewWithF` methods fails if lambda argument has a closure. For example:
+```scala
+case class A()
+case class B()
+case class C(a: A, b: B)
+object Module {
+    val a = Option(A())
+    val b = Option(B())
+    val c = a.flatMap(a => 
+        jam.cats.brewWithF[Option]((b: B) => C(a/*closure*/, b))
+    )
+}
+```
+fails with `Error while emitting module.scala, value a`. I don't expect compiler team to fix this issue, because macros system was fully rewritten in Scala 3. As a workaround you can create an object manually or move the closure out of `brewWithF`:
+```scala
+val c = a.flatMap(a => 
+    jam.cats.brewWithF[Option]((b: B) => C(_, b)).map(_.apply(a)/*closure*/)
+)
+```
+
 ### Roadmap
 - fix error message on vacancy for `brewF`
 - extract annotation pattern (instead of hardcoded `javax.inject.Inject`) for constructor selection to macro config
@@ -221,30 +242,25 @@ then `myjam.brewRec[WithSingleArg]` will throw `Recursive brewing for instance (
 
 ### Changelog
 
-#### 0.4.2
-- fix candidates type resolving for Scala 2.x
-
-#### 0.4.1
-- fix implicit args resolution for jam-cats
-
-#### 0.4.0
+#### 0.4.x
 - add `jam.monad.Reval` monad
 - resolve constructor from companion object
+- fix implicit args resolution for jam-cats
+- fix candidates type resolution for Scala 2.x
+- add more clear error message on `unsupported function type` for `jam.brewWith`
 
-#### 0.3.0
+#### 0.3.x
 - add `jam.cats` module
 - rename `brewWithFrom` to `brewFromWith` and swap arguments
 - a couple of minor fixes
 
-#### 0.2.1:
+#### 0.2.x:
+- add brewing configuration: `JamConfig`
 - add member names for ambiguous candidates compilation error
 - optimize compilation time for Scala 2.x
 - throw compilation error if member type cannot be resolved
 
-#### 0.2.0: :christmas_tree:
-- add brewing configuration: `JamConfig`
-
-#### 0.1.0:
+#### 0.1.x:
 - fix import ambiguity: `jam.tree.brew` was renamed to `jam.brewRec`
 - fix method overload ambiguity: `jam.brew(f)` was renamed to `jam.brewWith(f)`
 - allow passing an instance to brew from (instead of `this`): `jam.brewFrom`

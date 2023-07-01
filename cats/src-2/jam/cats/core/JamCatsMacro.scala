@@ -13,7 +13,10 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         brewFromFImpl[F, J](q"this")(config, F)
     }
 
-    private def liftFunctionToF[F[_]](ftpe: c.Type)(f: List[List[(c.Type, c.Tree)]] => c.Tree)(F: c.Expr[Monad[F]])(
+    private def liftFunctionToF[F[_]](
+        ftpe: c.Type,
+        atpe: c.Type,
+    )(f: List[List[(c.Type, c.Tree)]] => c.Tree)(F: c.Expr[Monad[F]])(
         argss: List[List[(c.Type, c.Tree)]]
     ): c.Tree = {
         import c.universe._
@@ -34,22 +37,26 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         """
     }
 
-    private def liftFunctionToFAndFlatten[F[_]](ftpe: c.Type)(f: List[List[(c.Type, c.Tree)]] => c.Tree)(F: c.Expr[Monad[F]])(
+    private def liftFunctionToFAndFlatten[F[_]](
+        ftpe: c.Type,
+        jtpe: c.Type,
+    )(f: List[List[(c.Type, c.Tree)]] => c.Tree)(F: c.Expr[Monad[F]])(
         argss: List[List[(c.Type, c.Tree)]]
     ): c.Tree = {
         import c.universe._
-        q"$F.flatten(${liftFunctionToF(ftpe)(f)(F)(argss)})"
+        q"$F.flatten(${liftFunctionToF(ftpe, appliedType(ftpe.typeConstructor, jtpe))(f)(F)(argss)})"
     }
 
     private def liftFunctionToFAndFlattenIfNeeded[F[_]](
         ftpe: c.Type,
+        jtpe: c.Type,
         flat: Boolean,
     )(f: List[List[(c.Type, c.Tree)]] => c.Tree)
         (F: c.Expr[Monad[F]])(
         argss: List[List[(c.Type, c.Tree)]]
     ): c.Tree = {
-        if (flat) liftFunctionToFAndFlatten(ftpe)(f)(F)(argss)
-        else liftFunctionToF(ftpe)(f)(F)(argss)
+        if (flat) liftFunctionToFAndFlatten(ftpe, jtpe)(f)(F)(argss)
+        else liftFunctionToF(ftpe, jtpe)(f)(F)(argss)
     }
 
     private def pure[F[_]](F: c.Expr[Monad[F]])(a: c.Tree): c.Tree = {
@@ -67,7 +74,7 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         val (constructorArgs, createFun, flat) = getConstructorArgumentsAndCreateFunction(jtpe, Option(ftpe), prefix = "")
         c.Expr(brew(self, jtpe, Option(ftpe), candidates, constructorArgs, prefix = "")(
             abortOnVacancy,
-            liftFunctionToFAndFlattenIfNeeded(ftpe, flat)(createFun)(F),
+            liftFunctionToFAndFlattenIfNeeded(ftpe, jtpe, flat)(createFun)(F),
             Option(pure(F)),
         ))
     }
@@ -77,7 +84,7 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         FT: c.WeakTypeTag[F[_]],
     ): c.Expr[J] = {
         import c.universe._
-        brewFromWithFImpl(q"this", f)(config, F)
+        brewFromWithFImpl[F, J](q"this", f)(config, F)
     }
 
     def brewFromWithFImpl[F[_], J](self: c.Tree, f: c.Tree)(config: c.Tree, F: c.Expr[Monad[F]])(implicit
@@ -89,7 +96,7 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         val (jtpe, ftpe) = (JT.tpe.dealias, FT.tpe.dealias)
         c.Expr(brew(self, jtpe, Option(ftpe), candidates, getFunctionArguments(f), prefix = "")(
             abortOnVacancy,
-            liftFunctionToF(ftpe)(createResultFromFunction(f, _))(F),
+            liftFunctionToF(ftpe, jtpe)(createResultFromFunction(f, _))(F),
             Option(pure(F)),
         ))
     }
@@ -111,7 +118,7 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         val (jtpe, ftpe) = (JT.tpe.dealias, FT.tpe.dealias)
         c.Expr(brew(self, jtpe, Option(ftpe), candidates, getFunctionArguments(f), prefix = "")(
             abortOnVacancy,
-            liftFunctionToFAndFlatten(ftpe)(createResultFromFunction(f, _))(F),
+            liftFunctionToFAndFlatten(ftpe, jtpe)(createResultFromFunction(f, _))(F),
             Option(pure(F)),
         ))
     }
@@ -134,7 +141,7 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         val (constructorArgs, createFun, flat) = getConstructorArgumentsAndCreateFunction(jtpe, Option(ftpe), prefix = "")
         c.Expr(brew(self, jtpe, Option(ftpe), candidates, constructorArgs, prefix = "")(
             createRecOnVacancyF(self, ftpe, configR, candidates)(F),
-            liftFunctionToFAndFlattenIfNeeded(ftpe, flat)(createFun)(F),
+            liftFunctionToFAndFlattenIfNeeded(ftpe, jtpe, flat)(createFun)(F),
             Option(pure(F)),
         ))
     }
@@ -144,7 +151,7 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         FT: c.WeakTypeTag[F[_]],
     ): c.Expr[J] = {
         import c.universe._
-        brewFromWithRecFImpl(q"this", f)(config, F)
+        brewFromWithRecFImpl[F, J](q"this", f)(config, F)
     }
 
     def brewFromWithRecFImpl[F[_], J](self: c.Tree, f: c.Tree)(config: c.Tree, F: c.Expr[Monad[F]])(implicit
@@ -156,7 +163,7 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         val configR = parseConfig(config)
         c.Expr(brew(self, jtpe, Option(ftpe), candidates, getFunctionArguments(f), prefix = "")(
             createRecOnVacancyF(self, ftpe, configR, candidates)(F),
-            liftFunctionToF(ftpe)(createResultFromFunction(f, _))(F),
+            liftFunctionToF(ftpe, jtpe)(createResultFromFunction(f, _))(F),
             Option(pure(F)),
         ))
     }
@@ -179,7 +186,7 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
         val configR = parseConfig(config)
         c.Expr(brew(self, jtpe, Option(ftpe), candidates, getFunctionArguments(f), prefix = "")(
             createRecOnVacancyF(self, ftpe, configR, candidates)(F),
-            liftFunctionToFAndFlatten(ftpe)(createResultFromFunction(f, _))(F),
+            liftFunctionToFAndFlatten(ftpe, jtpe)(createResultFromFunction(f, _))(F),
             Option(pure(F)),
         ))
     }
@@ -195,7 +202,7 @@ class JamCatsMacro(override val c: Context) extends JamCoreMacro(c) {
             val (constructorArgs, createFun, flat) = getConstructorArgumentsAndCreateFunction(jtpe, Option(ftpe), prefix)
             brew(self, jtpe, Option(ftpe), candidates, constructorArgs, prefix)(
                 rec(_, _),
-                liftFunctionToFAndFlattenIfNeeded(ftpe, flat)(createFun)(F),
+                liftFunctionToFAndFlattenIfNeeded(ftpe, jtpe, flat)(createFun)(F),
                 Option(pure(F)),
             )
         }
