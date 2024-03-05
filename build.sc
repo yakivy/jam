@@ -5,7 +5,7 @@ import mill.scalanativelib._
 import mill.scalalib.publish._
 
 object versions {
-    val publish = "0.4.3"
+    val publish = "0.4.4"
 
     val scala212 = "2.12.17"
     val scala213 = "2.13.10"

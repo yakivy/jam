@@ -182,6 +182,28 @@ class RevalSpec extends CustomMonadSpec {
                 assert(c == 3)
             }
         }
+        "run finalizers in correct order when" - {
+            "used in the same order" in {
+                var fs = Vector.empty[Int]
+                val a = Reval.makeThunkLater[IO, Unit](())(_ => fs = fs :+ 1)
+                val b = a.flatMap(_ => Reval.makeThunkLater[IO, Unit](())(_ => fs = fs :+ 2))
+                val c = a.flatMap(_ => Reval.makeThunkLater[IO, Unit](())(_ => fs = fs :+ 3))
+                val r = Semigroupal[Dep].product(b, c).usePure
+                r.asserting { _ =>
+                    assert(fs == Vector(3, 2, 1))
+                }
+            }
+            "used in the reverse order" in {
+                var fs = Vector.empty[Int]
+                val a = Reval.makeThunkLater[IO, Unit](())(_ => fs = fs :+ 1)
+                val b = a.flatMap(_ => Reval.makeThunkLater[IO, Unit](())(_ => fs = fs :+ 2))
+                val c = a.flatMap(_ => Reval.makeThunkLater[IO, Unit](())(_ => fs = fs :+ 3))
+                val r = Semigroupal[Dep].product(c, b).usePure
+                r.asserting { _ =>
+                    assert(fs == Vector(2, 3, 1))
+                }
+            }
+        }
         "apply pre/post functions in correct order" in {
             var c: List[String] = List.empty
             val a = for {

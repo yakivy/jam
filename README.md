@@ -17,7 +17,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 2. [Brew types](#brew-types)
 3. [Implementation details](#implementation-details)
 4. [Cats integration](#cats-integration)
-5. [Reval monad](#reval-monad)
+5. [Reval effect](#reval-effect)
 6. [Macro configuration](#macro-configuration)
 7. [Troubleshooting](#troubleshooting)
 8. [Roadmap](#roadmap)
@@ -143,9 +143,9 @@ trait UserModule {
 }
 ```
 
-### Reval monad
+### Reval effect
 
-`jam-monad` module provides `Reval` monad that encodes the idea of allocating an object which has an associated finalizer. Can be thought of as a mix of `cats.effect.Resource` and `cats.Eval`. It can be useful in cases when you need to control an object lifecycle: how many times the object should be allocated, when it should be allocated and how it should be closed. In the combination with `jam-cats` it should cover most DI cases. For example:
+`jam-monad` module provides `Reval` effect that encodes the idea of allocating an object which has an associated finalizer. Can be thought of as a mix of `cats.effect.Resource` and `cats.Eval`. It can be useful in cases when you need to control an object lifecycle: how many times the object should be allocated, when it should be allocated and how it should be closed. In the combination with `jam-cats` it should cover most DI cases. For example:
 ```scala
 class DatabaseAccess private ()
 object DatabaseAccess {
@@ -243,11 +243,11 @@ val c = a.flatMap(a =>
 ### Changelog
 
 #### 0.4.x
-- add `jam.monad.Reval` monad
+- add `jam.monad.Reval` effect
 - resolve constructor from companion object
 - fix implicit args resolution for jam-cats
 - fix candidates type resolution for Scala 2.x
-- add more clear error message on `unsupported function type` for `jam.brewWith`
+- fix a bunch of error messages
 
 #### 0.3.x
 - add `jam.cats` module

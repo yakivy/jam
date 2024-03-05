@@ -139,6 +139,7 @@ object JamCoreMacro {
     ): Option[(q.reflect.Symbol, List[(Boolean, List[q.reflect.ValDef])])] = {
         import q.reflect.*
         val tptArgs = getTpeArguments(tpe)
+        if (tpe.typeSymbol.flags.is(Flags.Abstract) || tpe.typeSymbol.flags.is(Flags.Trait)) return None
         val constructors = tpe.typeSymbol.declarations
             .filter(m => m.isClassConstructor && !m.flags.is(Flags.Private) && !m.flags.is(Flags.Protected))
             .map(_.tree)
@@ -164,7 +165,7 @@ object JamCoreMacro {
                 getConstructor(jtpe, prefix)
                     .map { case (sym, args) => (args, createResultFromConstructor(jtpe, sym, _), false) }
             )
-            .getOrElse(report.errorAndAbort(s"Unable to find public constructor for $prefix(${jtpe.show})"))
+            .getOrElse(report.errorAndAbort(s"Unable to find public constructor or apply method for $prefix(${jtpe.show})"))
     }
 
     private[jam] def getCompanionConstructor(using q: Quotes)(

@@ -278,6 +278,14 @@ class CoreSpec extends AnyFreeSpec with CustomSpec {
                     )
                 }
             }
+            "for traits" in {
+                new {
+                    assertCompilationErrorMessage(
+                        assertCompiles("""jam.brew[Marked]"""),
+                        "Unable to find public constructor or apply method for (jam.CustomSpec.Marked)",
+                    )
+                }
+            }
             "with ambiguous constructor and unresolved arguments" in {
                 new {
                     assertCompilationErrorMessage(
