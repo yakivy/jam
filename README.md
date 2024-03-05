@@ -27,7 +27,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 Latest stable jam dependency:
 ```scala
 libraryDependencies += Seq(
-    "com.github.yakivy" %%% "jam-core" % "0.4.3",
+    "com.github.yakivy" %%% "jam-core" % "0.4.4",
 )
 ```
 Usage example:
