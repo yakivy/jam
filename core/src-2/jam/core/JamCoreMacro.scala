@@ -113,6 +113,7 @@ private[jam] class JamCoreMacro(val c: Context) {
             //.asMethod resolves signature therefore asks to provide explicit types for brewed members
             .filter(m => !m.isConstructor/* && (!m.isMethod || m.asMethod.paramLists.flatten.isEmpty)*/)
             .filter(_.isTerm).map(_.asTerm)
+            .filterNot(_.isParamWithDefault)
             .map(s => s.getter.orElse(s).asTerm)
             .toList.distinct.view
             .flatMap { m =>

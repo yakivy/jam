@@ -27,7 +27,7 @@ Essential differences from [macwire](https://github.com/softwaremill/macwire):
 Latest stable jam dependency:
 ```scala
 libraryDependencies += Seq(
-    "com.github.yakivy" %%% "jam-core" % "0.4.4",
+    "com.github.yakivy" %%% "jam-core" % "0.4.5",
 )
 ```
 Usage example:
@@ -248,6 +248,7 @@ val c = a.flatMap(a =>
 - fix implicit args resolution for jam-cats
 - fix candidates type resolution for Scala 2.x
 - fix a bunch of error messages
+- allow to brew from case classes
 
 #### 0.3.x
 - add `jam.cats` module

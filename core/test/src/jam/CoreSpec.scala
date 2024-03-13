@@ -41,6 +41,15 @@ class CoreSpec extends AnyFreeSpec with CustomSpec {
                 }
             }
 
+            "in case module" in {
+                case class Module(a: WithEmptyArgs) {
+                    val b = jam.brew[WithSingleArg]
+
+                    assert(b.a.eq(a))
+                }
+                Module(new WithEmptyArgs)
+            }
+
             "in simple module from argument" in {
                 new {
                     object module {
@@ -48,6 +57,17 @@ class CoreSpec extends AnyFreeSpec with CustomSpec {
                     }
                     val b = jam.brewFrom[WithSingleArg](module)
                     assert(b.a.eq(module.a))
+                }
+            }
+
+            "in case module from argument" in {
+                new {
+                    val a = new WithEmptyArgs
+                    val b = new WithEmptyArgs
+                    case class Module(c: WithEmptyArgs = a)
+                    val module = Module(b)
+                    val d = jam.brewFromRec[WithSingleArg](module)
+                    assert(d.a.eq(b))
                 }
             }
 

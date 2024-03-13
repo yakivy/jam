@@ -111,7 +111,9 @@ object JamCoreMacro {
         (self.tpe.typeSymbol.methodMembers ::: self.tpe.typeSymbol.fieldMembers)
             .view
             .filter(m => !m.fullName.startsWith("java.lang.Object.") && !m.fullName.startsWith("scala.Any."))
-            .filter(!_.isClassConstructor)
+            .filterNot(m => m.flags.is(Flags.Synthetic) && m.fullName.contains("$default$"))
+            .filterNot(m => m.maybeOwner.flags.is(Flags.Case) && m.flags.is(Flags.Synthetic) && m.fullName.matches(".*\\._\\d+"))
+            .filterNot(_.isClassConstructor)
             .map(_.tree)
             .collect {
                 case m: ValDef => (
